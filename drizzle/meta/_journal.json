@@ -22,6 +22,20 @@
       "when": 1789266819854,
       "tag": "0002_omniscient_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1789856198047,
+      "tag": "0003_skinny_klaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1789856244144,
+      "tag": "0004_far_vengeance",
+      "breakpoints": true
     }
   ]
 }

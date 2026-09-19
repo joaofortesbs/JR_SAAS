@@ -51,7 +51,7 @@ export async function getDashboard(userId: number) {
     db.select().from(fixedCommitments).where(eq(fixedCommitments.userId, userId)).orderBy(fixedCommitments.weekday, fixedCommitments.startTime),
     db.select().from(resources).where(eq(resources.userId, userId)).orderBy(desc(resources.createdAt)),
     db.select().from(essays).where(eq(essays.userId, userId)).orderBy(desc(essays.updatedAt)),
-    db.select().from(studySessions).where(eq(studySessions.userId, userId)).orderBy(desc(studySessions.createdAt)),
+  db.select().from(studySessions).where(eq(studySessions.userId, userId)).orderBy(desc(studySessions.createdAt)),
   ]);
   return { exams: examRows, topics: topicRows, blocks: blockRows, windows: windowRows, commitments: commitmentRows, resources: resourceRows, essays: essayRows, sessions: sessionRows };
 }

@@ -1,15 +1,18 @@
-import { z } from "zod";
-import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getDashboard, getDb, listEssayDetail, listTopics, exams, topics, studyWindows, fixedCommitments, resources, studyBlocks, studySessions, essays, essayVersions, essayFeedback, auditEvents } from "./db";
+import { actualMinutesFromSeconds, dailyFlowSeries, elapsedSeconds } from "./flow";
+import { addMinutesToTime } from "./planning";
 import { generateStudyPlan } from "./planning";
+import { auditEvents, essays, essayFeedback, essayVersions, exams, fixedCommitments, getDashboard, getDb, listEssayDetail, listTopics, resources, studyBlocks, studySessions, studyWindows, topics } from "./db";
 
 const priority = z.enum(["principal", "alta", "media", "baixa"]);
 const blockStatus = z.enum(["planned", "accepted", "in_progress", "completed", "partially_completed", "postponed", "cancelled"]);
+const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const appRouter = router({
   system: systemRouter,
@@ -26,13 +29,25 @@ export const appRouter = router({
     list: protectedProcedure.query(({ ctx }) => getDashboard(ctx.user.id).then(data => data.exams)),
     detail: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ ctx, input }) => {
       const data = await getDashboard(ctx.user.id);
-      return { exam: data.exams.find(exam => exam.id === input.id), topics: data.topics.filter(topic => topic.examId === input.id) };
+      return { exam: data.exams.find(exam => exam.id === input.id), topics: data.topics.filter(topic => topic.examId === input.id), blocks: data.blocks.filter(block => block.examId === input.id), essays: data.essays.filter(essay => essay.examId === input.id) };
     }),
     topics: protectedProcedure.input(z.object({ examId: z.number().optional() }).optional()).query(({ ctx, input }) => listTopics(ctx.user.id, input?.examId)),
-    create: protectedProcedure.input(z.object({ name: z.string().min(2), institution: z.string().min(2), date: z.string(), phase: z.string().default("Prova principal"), priority: priority.default("alta"), color: z.string().default("mint"), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(z.object({ name: z.string().min(2), institution: z.string().min(2), date: dateInput, phase: z.string().default("Prova principal"), priority: priority.default("alta"), color: z.string().default("mint"), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
       const [created] = await db.insert(exams).values({ ...input, userId: ctx.user.id }).$returningId();
       return { id: created.id };
+    }),
+    update: protectedProcedure.input(z.object({ id: z.number(), name: z.string().min(2), institution: z.string().min(2), date: dateInput, priority, notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id);
+      if (!data.exams.some(exam => exam.id === input.id)) throw new TRPCError({ code: "NOT_FOUND", message: "EXAM_NOT_FOUND" });
+      await db.update(exams).set({ name: input.name, institution: input.institution, date: input.date, priority: input.priority, notes: input.notes }).where(and(eq(exams.id, input.id), eq(exams.userId, ctx.user.id)));
+      return { success: true };
+    }),
+    close: protectedProcedure.input(z.object({ id: z.number(), status: z.enum(["completed", "archived"]).default("completed") })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      await db.update(exams).set({ status: input.status }).where(and(eq(exams.id, input.id), eq(exams.userId, ctx.user.id)));
+      return { success: true };
     }),
     createTopic: protectedProcedure.input(z.object({ examId: z.number(), name: z.string().min(2), subject: z.string().min(2), weight: z.number().min(1).max(5).default(3) })).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
@@ -62,11 +77,12 @@ export const appRouter = router({
       const block = data.blocks.find(candidate => candidate.id === input.id);
       return { block, exam: block?.examId ? data.exams.find(exam => exam.id === block.examId) : undefined, windows: data.windows };
     }),
-    generate: protectedProcedure.input(z.object({ weekStart: z.string().optional() }).optional()).mutation(async ({ ctx, input }) => {
+    generate: protectedProcedure.input(z.object({ weekStart: dateInput.optional() }).optional()).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
       const data = await getDashboard(ctx.user.id);
-      if (!data.windows.length || !data.exams.length) throw new Error("INSUFFICIENT_DATA");
-      const suggestions = generateStudyPlan({ weekStart: input?.weekStart, exams: data.exams, topics: data.topics, windows: data.windows });
+      const activeExams = data.exams.filter(exam => exam.status === "active");
+      if (!data.windows.length || !activeExams.length) throw new Error("INSUFFICIENT_DATA");
+      const suggestions = generateStudyPlan({ weekStart: input?.weekStart, exams: activeExams, topics: data.topics, windows: data.windows });
       const existingKeys = new Set(data.blocks.map(block => `${block.date}:${block.startTime}`));
       const freshSuggestions = suggestions.filter(suggestion => !existingKeys.has(`${suggestion.date}:${suggestion.startTime}`));
       if (!freshSuggestions.length) return { ids: [], created: 0 };
@@ -77,6 +93,69 @@ export const appRouter = router({
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
       await db.update(studyBlocks).set({ status: input.status }).where(and(eq(studyBlocks.id, input.id), eq(studyBlocks.userId, ctx.user.id)));
       await db.insert(auditEvents).values({ userId: ctx.user.id, entityType: "studyBlock", entityId: input.id, action: `status_${input.status}`, payload: JSON.stringify(input) });
+      return { success: true };
+    }),
+  }),
+  flows: router({
+    active: protectedProcedure.query(async ({ ctx }) => {
+      const data = await getDashboard(ctx.user.id);
+      const session = data.sessions.find(candidate => candidate.status === "running" || candidate.status === "paused");
+      if (!session) return null;
+      const block = data.blocks.find(candidate => candidate.id === session.blockId);
+      const exam = block?.examId ? data.exams.find(candidate => candidate.id === block.examId) : undefined;
+      return { session, block, exam, elapsedSeconds: elapsedSeconds(session) };
+    }),
+    series: protectedProcedure.input(z.object({ days: z.number().min(2).max(30).default(7) }).optional()).query(async ({ ctx, input }) => {
+      const data = await getDashboard(ctx.user.id);
+      return dailyFlowSeries(data.sessions.map(session => ({ startedAt: session.startedAt, actualMinutes: session.actualMinutes, status: session.status })), input?.days ?? 7);
+    }),
+    createAdHoc: protectedProcedure.input(z.object({ examId: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id); const exam = data.exams.find(candidate => candidate.id === input.examId);
+      if (!exam) throw new TRPCError({ code: "NOT_FOUND", message: "EXAM_NOT_FOUND" });
+      const now = new Date(); const startTime = now.toTimeString().slice(0, 5);
+      const [created] = await db.insert(studyBlocks).values({ userId: ctx.user.id, examId: exam.id, title: `Flow · ${exam.name}`, kind: "flow", date: now.toISOString().slice(0, 10), startTime, endTime: addMinutesToTime(startTime, 50), durationMinutes: 50, status: "accepted", reason: "Sessão avulsa iniciada diretamente a partir da prova.", minimumVersion: "25 min de foco já contam para este objetivo." }).$returningId();
+      return { id: created.id };
+    }),
+    start: protectedProcedure.input(z.object({ blockId: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id);
+      if (!data.blocks.some(block => block.id === input.blockId)) throw new TRPCError({ code: "NOT_FOUND", message: "STUDY_BLOCK_NOT_FOUND" });
+      if (data.sessions.some(session => session.status === "running" || session.status === "paused")) throw new TRPCError({ code: "CONFLICT", message: "ACTIVE_FLOW_EXISTS" });
+      const now = new Date();
+      const [created] = await db.insert(studySessions).values({ userId: ctx.user.id, blockId: input.blockId, startedAt: now, status: "running", accumulatedSeconds: 0, lastResumedAt: now });
+      await db.update(studyBlocks).set({ status: "in_progress" }).where(and(eq(studyBlocks.id, input.blockId), eq(studyBlocks.userId, ctx.user.id)));
+      return { id: created.insertId };
+    }),
+    pause: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id); const session = data.sessions.find(candidate => candidate.id === input.id);
+      if (!session || session.status !== "running") throw new TRPCError({ code: "CONFLICT", message: "FLOW_NOT_RUNNING" });
+      await db.update(studySessions).set({ status: "paused", accumulatedSeconds: elapsedSeconds(session), lastResumedAt: null }).where(and(eq(studySessions.id, input.id), eq(studySessions.userId, ctx.user.id)));
+      return { success: true };
+    }),
+    resume: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id); const session = data.sessions.find(candidate => candidate.id === input.id);
+      if (!session || session.status !== "paused") throw new TRPCError({ code: "CONFLICT", message: "FLOW_NOT_PAUSED" });
+      await db.update(studySessions).set({ status: "running", lastResumedAt: new Date() }).where(and(eq(studySessions.id, input.id), eq(studySessions.userId, ctx.user.id)));
+      return { success: true };
+    }),
+    complete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id); const session = data.sessions.find(candidate => candidate.id === input.id);
+      if (!session || session.status === "completed" || session.status === "cancelled") throw new TRPCError({ code: "CONFLICT", message: "FLOW_ALREADY_CLOSED" });
+      const seconds = elapsedSeconds(session); const now = new Date(); const actualMinutes = actualMinutesFromSeconds(seconds);
+      await db.update(studySessions).set({ status: "completed", accumulatedSeconds: seconds, lastResumedAt: null, endedAt: now, actualMinutes }).where(and(eq(studySessions.id, input.id), eq(studySessions.userId, ctx.user.id)));
+      await db.update(studyBlocks).set({ status: "completed" }).where(and(eq(studyBlocks.id, session.blockId), eq(studyBlocks.userId, ctx.user.id)));
+      return { success: true, actualMinutes };
+    }),
+    cancel: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const data = await getDashboard(ctx.user.id); const session = data.sessions.find(candidate => candidate.id === input.id);
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "FLOW_NOT_FOUND" });
+      await db.update(studySessions).set({ status: "cancelled", lastResumedAt: null }).where(and(eq(studySessions.id, input.id), eq(studySessions.userId, ctx.user.id)));
+      await db.update(studyBlocks).set({ status: "postponed" }).where(and(eq(studyBlocks.id, session.blockId), eq(studyBlocks.userId, ctx.user.id)));
       return { success: true };
     }),
   }),
@@ -93,7 +172,7 @@ export const appRouter = router({
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
       const block = (await getDashboard(ctx.user.id)).blocks.find(candidate => candidate.id === input.blockId);
       if (!block) throw new TRPCError({ code: "NOT_FOUND", message: "STUDY_BLOCK_NOT_FOUND" });
-      const [created] = await db.insert(studySessions).values({ ...input, userId: ctx.user.id });
+      const [created] = await db.insert(studySessions).values({ ...input, userId: ctx.user.id, status: "completed", accumulatedSeconds: Math.max(0, (input.actualMinutes ?? 0) * 60) });
       await db.update(studyBlocks).set({ status: "completed" }).where(and(eq(studyBlocks.id, input.blockId), eq(studyBlocks.userId, ctx.user.id)));
       return { id: created.insertId };
     }),

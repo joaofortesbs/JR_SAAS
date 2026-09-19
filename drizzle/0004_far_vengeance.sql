@@ -1,0 +1,1 @@
+ALTER TABLE `exams` ADD `status` enum('active','completed','archived') DEFAULT 'active' NOT NULL;
