@@ -1,28 +1,42 @@
-# Ponto Estudos — Checklist da reconstrução
+# Central JR — Checklist da plataforma
 
-## Concluído
+## Base já entregue
 
-- [x] Sidebar reduzida para Painel, Provas e Flows.
-- [x] Redirecionamento de Hoje/Evolução para Painel.
-- [x] Redirecionamento de Plano para Flows.
-- [x] Redações e Biblioteca reposicionadas em Mais ferramentas.
-- [x] Minha rotina e Preferências movidas para o menu de perfil.
-- [x] Provas com cadastro de nome, prazo, instituição, prioridade e observação.
-- [x] Grid responsivo de provas com estados Ativas e Histórico.
-- [x] Edição e encerramento de provas com preservação do histórico.
-- [x] Detalhe de prova com prazo, cobertura, conteúdos, blocos e redações.
-- [x] Flow com seleção de bloco planejado ou prova para sessão avulsa.
-- [x] Sessão persistente com estados running, paused, completed e cancelled.
-- [x] Retomada segura do cronômetro após refresh.
-- [x] Gráfico de linha de minutos concluídos nos últimos sete dias.
+- [x] Rebranding completo para Central JR no shell, título, paleta, tipografia e cópias visíveis.
+- [x] Tokens semânticos azul-marinho, azul, rosa, superfícies e estados light/dark aplicados.
+- [x] Sidebar com Painel, Provas, Redações e Flows; preferências e conta no perfil.
+- [x] Provas com cadastro, edição, encerramento e conteúdos.
+- [x] Flows com cronômetro persistente, pausa, retomada, cancelamento e gráfico sob demanda.
 - [x] Painel consolidado com métricas, próxima prova, próximo movimento e redações.
-- [x] Migrações 0003 e 0004 aplicadas ao banco.
-- [x] TypeScript, testes Vitest e build de produção validados.
-- [x] Smoke test visual desktop/mobile das rotas Painel, Provas e Flows.
 
-## Pontos de atenção futuros
+## Reconstrução de Redações — concluída
 
-- [ ] Adicionar testes de integração tRPC contra banco para start/pause/resume/complete.
-- [ ] Criar edição de conteúdos diretamente no detalhe da prova.
-- [ ] Adicionar confirmação acessível antes de encerrar prova ou cancelar Flow.
-- [ ] Dividir o bundle de gráficos via lazy loading se o produto crescer.
+- [x] Removida a tela/editor legado de Redações de `Home.tsx`.
+- [x] Criada a biblioteca com busca, filtro por tema, estados vazio/loading/erro e cards de redação.
+- [x] Criado o fluxo de nova redação com onboarding curto e proposta de valor clara.
+- [x] Criado editor rico baseado em `contentEditable` com seleção persistente por `Range`.
+- [x] Toolbar flutuante funcional com negrito, itálico, sublinhado, tachado e cor do texto.
+- [x] Criado painel lateral de partes com categorias customizáveis, cores, edição e exclusão.
+- [x] Aplicação de parte ao trecho selecionado com `data-part-id`, cor visual e cobertura percentual.
+- [x] Autosave com debounce e salvamento manual de versão.
+- [x] Sanitização server-side de HTML permitido para reduzir risco de conteúdo inseguro.
+- [x] Ownership por usuário em detalhe, autosave, partes, aplicação de parte e Flow.
+- [x] Migração `0005_dashing_rawhide_kid` gerada e aplicada ao banco.
+- [x] `studyBlocks.essayId` criado para vínculo persistente entre redação e Flow.
+- [x] CTA “Estudar em um Flow” cria e inicia imediatamente o Flow associado.
+- [x] Seletor de Flow atualizado para incluir redações revisáveis.
+
+## Qualidade
+
+- [x] Testes unitários de sanitização, contagem e cobertura de partes.
+- [x] Teste de integração tRPC cobrindo criação, autosave, versão, parte, cobertura e Flow associado.
+- [x] TypeScript sem erros.
+- [x] Suíte Vitest completa: 7 arquivos, 13 testes aprovados.
+- [x] Build de produção aprovado.
+- [x] Preview desktop e mobile de biblioteca e criação validadas.
+
+## Próxima fatia recomendada
+
+- [x] Adicionar feedback inline/contextual da professora, ancorado ao trecho selecionado dentro do editor.
+- [x] Implementar exportação da redação para PDF/HTML.
+- [x] Adicionar ordenação manual de partes via drag-and-drop com fallback por botões para teclado e touch.

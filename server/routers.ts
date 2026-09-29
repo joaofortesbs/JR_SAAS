@@ -8,7 +8,8 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { actualMinutesFromSeconds, dailyFlowSeries, elapsedSeconds } from "./flow";
 import { addMinutesToTime } from "./planning";
 import { generateStudyPlan } from "./planning";
-import { auditEvents, essays, essayFeedback, essayVersions, exams, fixedCommitments, getDashboard, getDb, listEssayDetail, listTopics, resources, studyBlocks, studySessions, studyWindows, topics } from "./db";
+import { auditEvents, essays, essayFeedback, essayParts, essayVersions, exams, fixedCommitments, getDashboard, getDb, listEssayDetail, listTopics, resources, studyBlocks, studySessions, studyWindows, topics } from "./db";
+import { partCoverage, sanitizeEssayHtml } from "./essay";
 
 const priority = z.enum(["principal", "alta", "media", "baixa"]);
 const blockStatus = z.enum(["planned", "accepted", "in_progress", "completed", "partially_completed", "postponed", "cancelled"]);
@@ -55,6 +56,13 @@ export const appRouter = router({
       if (!exam) throw new TRPCError({ code: "NOT_FOUND", message: "EXAM_NOT_FOUND" });
       const [created] = await db.insert(topics).values({ ...input, userId: ctx.user.id });
       return { id: created.insertId };
+    }),
+    updateTopic: protectedProcedure.input(z.object({ id: z.number(), name: z.string().min(2), subject: z.string().min(2), weight: z.number().min(1).max(5) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const topic = (await getDashboard(ctx.user.id)).topics.find(candidate => candidate.id === input.id);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "TOPIC_NOT_FOUND" });
+      await db.update(topics).set({ name: input.name, subject: input.subject, weight: input.weight }).where(and(eq(topics.id, input.id), eq(topics.userId, ctx.user.id)));
+      return { success: true } as const;
     }),
   }),
   routine: router({
@@ -109,12 +117,15 @@ export const appRouter = router({
       const data = await getDashboard(ctx.user.id);
       return dailyFlowSeries(data.sessions.map(session => ({ startedAt: session.startedAt, actualMinutes: session.actualMinutes, status: session.status })), input?.days ?? 7);
     }),
-    createAdHoc: protectedProcedure.input(z.object({ examId: z.number() })).mutation(async ({ ctx, input }) => {
+    createAdHoc: protectedProcedure.input(z.object({ examId: z.number().optional(), essayId: z.number().optional() }).refine(value => Boolean(value.examId) !== Boolean(value.essayId), { message: "INVALID_FLOW_CONTEXT" })).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
-      const data = await getDashboard(ctx.user.id); const exam = data.exams.find(candidate => candidate.id === input.examId);
-      if (!exam) throw new TRPCError({ code: "NOT_FOUND", message: "EXAM_NOT_FOUND" });
+      const data = await getDashboard(ctx.user.id);
+      const exam = input.examId ? data.exams.find(candidate => candidate.id === input.examId) : undefined;
+      const essay = input.essayId ? data.essays.find(candidate => candidate.id === input.essayId) : undefined;
+      if (input.examId && !exam) throw new TRPCError({ code: "NOT_FOUND", message: "EXAM_NOT_FOUND" });
+      if (input.essayId && !essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
       const now = new Date(); const startTime = now.toTimeString().slice(0, 5);
-      const [created] = await db.insert(studyBlocks).values({ userId: ctx.user.id, examId: exam.id, title: `Flow · ${exam.name}`, kind: "flow", date: now.toISOString().slice(0, 10), startTime, endTime: addMinutesToTime(startTime, 50), durationMinutes: 50, status: "accepted", reason: "Sessão avulsa iniciada diretamente a partir da prova.", minimumVersion: "25 min de foco já contam para este objetivo." }).$returningId();
+      const [created] = await db.insert(studyBlocks).values({ userId: ctx.user.id, examId: exam?.id, essayId: essay?.id, title: `Flow · ${exam?.name ?? essay?.title}`, kind: "flow", date: now.toISOString().slice(0, 10), startTime, endTime: addMinutesToTime(startTime, 50), durationMinutes: 50, status: "accepted", reason: exam ? "Sessão avulsa iniciada diretamente a partir da prova." : "Sessão avulsa iniciada diretamente a partir da redação.", minimumVersion: "25 min de foco já contam para este objetivo." }).$returningId();
       return { id: created.id };
     }),
     start: protectedProcedure.input(z.object({ blockId: z.number() })).mutation(async ({ ctx, input }) => {
@@ -190,9 +201,68 @@ export const appRouter = router({
       const existing = await listEssayDetail(ctx.user.id, input.id);
       if (!existing.essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
       const nextVersion = (existing.versions[0]?.versionNumber ?? 0) + 1;
-      await db.update(essays).set({ title: input.title, theme: input.theme, currentText: input.currentText, status: input.status ?? "draft" }).where(and(eq(essays.id, input.id), eq(essays.userId, ctx.user.id)));
-      await db.insert(essayVersions).values({ userId: ctx.user.id, essayId: input.id, versionNumber: nextVersion, text: input.currentText, origin: "editor" });
+      const currentText = sanitizeEssayHtml(input.currentText);
+      await db.update(essays).set({ title: input.title, theme: input.theme, currentText, status: input.status ?? "draft" }).where(and(eq(essays.id, input.id), eq(essays.userId, ctx.user.id)));
+      await db.insert(essayVersions).values({ userId: ctx.user.id, essayId: input.id, versionNumber: nextVersion, text: currentText, origin: "editor" });
       return { versionNumber: nextVersion };
+    }),
+    autosave: protectedProcedure.input(z.object({ id: z.number(), title: z.string().min(2), theme: z.string().optional(), currentText: z.string() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const existing = await listEssayDetail(ctx.user.id, input.id);
+      if (!existing.essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
+      await db.update(essays).set({ title: input.title, theme: input.theme, currentText: sanitizeEssayHtml(input.currentText) }).where(and(eq(essays.id, input.id), eq(essays.userId, ctx.user.id)));
+      return { saved: true } as const;
+    }),
+    createPart: protectedProcedure.input(z.object({ essayId: z.number(), name: z.string().min(2).max(100), color: z.enum(["blue", "pink", "mint", "orange", "yellow"]).default("blue") })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const existing = await listEssayDetail(ctx.user.id, input.essayId);
+      if (!existing.essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
+      const [created] = await db.insert(essayParts).values({ ...input, userId: ctx.user.id, sortOrder: existing.parts.length });
+      return { id: created.insertId };
+    }),
+    updatePart: protectedProcedure.input(z.object({ id: z.number(), name: z.string().min(2).max(100), color: z.enum(["blue", "pink", "mint", "orange", "yellow"]) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const existing = await db.select().from(essayParts).where(and(eq(essayParts.id, input.id), eq(essayParts.userId, ctx.user.id))).limit(1);
+      if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_PART_NOT_FOUND" });
+      await db.update(essayParts).set({ name: input.name, color: input.color }).where(and(eq(essayParts.id, input.id), eq(essayParts.userId, ctx.user.id)));
+      return { success: true } as const;
+    }),
+    reorderParts: protectedProcedure.input(z.object({ essayId: z.number(), partIds: z.array(z.number()).min(1) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const detail = await listEssayDetail(ctx.user.id, input.essayId);
+      if (!detail.essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
+      const owned = new Set(detail.parts.map(part => part.id));
+      if (input.partIds.length !== owned.size || input.partIds.some(id => !owned.has(id))) throw new TRPCError({ code: "BAD_REQUEST", message: "INVALID_ESSAY_PART_ORDER" });
+      await Promise.all(
+        input.partIds.map((id, sortOrder) =>
+          db
+            .update(essayParts)
+            .set({ sortOrder })
+            .where(
+              and(
+                eq(essayParts.id, id),
+                eq(essayParts.userId, ctx.user.id),
+                eq(essayParts.essayId, input.essayId),
+              ),
+            ),
+        ),
+      );
+      return { success: true } as const;
+    }),
+    deletePart: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      await db.delete(essayParts).where(and(eq(essayParts.id, input.id), eq(essayParts.userId, ctx.user.id)));
+      return { success: true } as const;
+    }),
+    applyPart: protectedProcedure.input(z.object({ essayId: z.number(), partId: z.number(), currentText: z.string() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");
+      const detail = await listEssayDetail(ctx.user.id, input.essayId);
+      const part = detail.parts.find(candidate => candidate.id === input.partId);
+      if (!detail.essay) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_NOT_FOUND" });
+      if (!part) throw new TRPCError({ code: "NOT_FOUND", message: "ESSAY_PART_NOT_FOUND" });
+      const currentText = sanitizeEssayHtml(input.currentText);
+      await db.update(essays).set({ currentText }).where(and(eq(essays.id, input.essayId), eq(essays.userId, ctx.user.id)));
+      return { saved: true, coverage: partCoverage(currentText, part.id) } as const;
     }),
     feedback: protectedProcedure.input(z.object({ essayId: z.number(), origin: z.string(), totalScore: z.number().optional(), competence1: z.number().optional(), competence2: z.number().optional(), competence3: z.number().optional(), competence4: z.number().optional(), competence5: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new Error("DATABASE_UNAVAILABLE");

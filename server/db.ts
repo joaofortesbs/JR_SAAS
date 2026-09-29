@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { ENV } from "./_core/env";
 import {
   InsertUser, User, users, exams, topics, studyWindows, fixedCommitments,
-  resources, studyBlocks, studySessions, essays, essayVersions, essayFeedback,
+  resources, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback,
   auditEvents,
 } from "../drizzle/schema";
 
@@ -62,13 +62,14 @@ export async function listTopics(userId: number, examId?: number) {
 }
 
 export async function listEssayDetail(userId: number, essayId: number) {
-  const db = await getDb(); if (!db) return { essay: undefined, versions: [], feedback: [] };
-  const [essayRows, versions, feedback] = await Promise.all([
+  const db = await getDb(); if (!db) return { essay: undefined, parts: [], versions: [], feedback: [] };
+  const [essayRows, parts, versions, feedback] = await Promise.all([
     db.select().from(essays).where(and(eq(essays.userId, userId), eq(essays.id, essayId))).limit(1),
+    db.select().from(essayParts).where(and(eq(essayParts.userId, userId), eq(essayParts.essayId, essayId))).orderBy(essayParts.sortOrder, essayParts.createdAt),
     db.select().from(essayVersions).where(and(eq(essayVersions.userId, userId), eq(essayVersions.essayId, essayId))).orderBy(desc(essayVersions.versionNumber)),
     db.select().from(essayFeedback).where(and(eq(essayFeedback.userId, userId), eq(essayFeedback.essayId, essayId))).orderBy(desc(essayFeedback.createdAt)),
   ]);
-  return { essay: essayRows[0], versions, feedback };
+  return { essay: essayRows[0], parts, versions, feedback };
 }
 
-export { users, exams, topics, studyWindows, fixedCommitments, resources, studyBlocks, studySessions, essays, essayVersions, essayFeedback, auditEvents };
+export { users, exams, topics, studyWindows, fixedCommitments, resources, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback, auditEvents };

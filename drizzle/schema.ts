@@ -79,6 +79,7 @@ export const studyBlocks = mysqlTable("studyBlocks", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   examId: int("examId"),
+  essayId: int("essayId"),
   topicId: int("topicId"),
   resourceId: int("resourceId"),
   title: varchar("title", { length: 180 }).notNull(),
@@ -128,6 +129,17 @@ export const essays = mysqlTable("essays", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const essayParts = mysqlTable("essayParts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  essayId: int("essayId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  color: varchar("color", { length: 30 }).default("blue").notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const essayVersions = mysqlTable("essayVersions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
@@ -173,6 +185,7 @@ export type Resource = typeof resources.$inferSelect;
 export type StudyBlock = typeof studyBlocks.$inferSelect;
 export type StudySession = typeof studySessions.$inferSelect;
 export type Essay = typeof essays.$inferSelect;
+export type EssayPart = typeof essayParts.$inferSelect;
 export type EssayVersion = typeof essayVersions.$inferSelect;
 export type EssayFeedback = typeof essayFeedback.$inferSelect;
 export type AuditEvent = typeof auditEvents.$inferSelect;

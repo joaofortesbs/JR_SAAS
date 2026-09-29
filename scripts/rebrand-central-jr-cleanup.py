@@ -1,0 +1,21 @@
+from pathlib import Path
+root = Path('/home/ubuntu/jr-saas')
+for path in (root / 'client/src').rglob('*.tsx'):
+    text = path.read_text()
+    text = text.replace('status-lilac', 'status-blue')
+    text = text.replace('bubble-lilac', 'bubble-blue')
+    text = text.replace('pill-lilac', 'pill-blue')
+    text = text.replace('orb-lilac', 'orb-blue')
+    text = text.replace('fill-purple', 'fill-blue')
+    text = text.replace('color="purple"', 'color="blue"')
+    path.write_text(text)
+css_path = root / 'client/src/index.css'
+css = css_path.read_text()
+css = css.replace('font-family: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;', 'font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;')
+css = css.replace('rgba(73, 61, 118, 0.055)', 'rgba(21, 37, 61, 0.055)').replace('rgba(73, 61, 118, .06)', 'rgba(21, 37, 61, .06)')
+css = css.replace('  --edu-blue: #e9f1ff;\n  --edu-blue-strong: #1559b7;\n  --edu-blue: #e9f1ff;\n  --edu-blue-strong: #1769d2;', '  --edu-blue: #e9f1ff;\n  --edu-blue-strong: #1769d2;')
+css = css.replace('  --edu-blue: #223650;\n  --edu-blue-strong:#9bbeff;\n  --edu-blue: #223650;\n  --edu-blue-strong: #8fb7ff;', '  --edu-blue: #223650;\n  --edu-blue-strong: #8fb7ff;')
+css = css.replace('  .bubble-blue { color: var(--edu-blue-strong); background: var(--edu-blue); }\n  .bubble-blue { color: var(--edu-blue-strong); background: var(--edu-blue); }', '  .bubble-blue { color: var(--edu-blue-strong); background: var(--edu-blue); }')
+css = css.replace('  .status-blue { color: #1559b7; background: var(--edu-blue); }\n  .status-blue { color: #4e7dbd; background: var(--edu-blue); }', '  .status-blue { color: #1559b7; background: var(--edu-blue); }')
+css = css.replace('  .fill-blue { background: #1769d2; }\n  .fill-mint { background: #6cc59e; }\n  .fill-blue { background: #80aae4; }', '  .fill-blue { background: #1769d2; }\n  .fill-mint { background: #6cc59e; }')
+css_path.write_text(css)
