@@ -4,8 +4,10 @@ import NotFound from "@/pages/NotFound";
 import Panel from "@/pages/Panel";
 import Exams, { ExamDetail } from "@/pages/Exams";
 import Flows from "@/pages/Flows";
+import Essays from "@/pages/Essays";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AppShell from "./components/AppShell";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import { useEffect } from "react";
@@ -32,9 +34,9 @@ function Router() {
     <Route path="/flows" component={Flows} />
     <Route path="/plano" component={Flows} />
     <Route path="/plano/:blockId" component={LegacyBlockRedirect} />
-    <Route path="/redacoes" component={Home} />
-    <Route path="/redacoes/nova" component={Home} />
-    <Route path="/redacoes/:essayId" component={Home} />
+    <Route path="/redacoes" component={Essays} />
+    <Route path="/redacoes/nova" component={Essays} />
+    <Route path="/redacoes/:essayId" component={Essays} />
     <Route path="/biblioteca" component={Home} />
     <Route path="/rotina" component={Home} />
     <Route path="/configuracoes" component={Home} />
@@ -44,5 +46,5 @@ function Router() {
 }
 
 export default function App() {
-  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster /><Router /></TooltipProvider></ThemeProvider></ErrorBoundary>;
+  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster /><AppShell><Router /></AppShell></TooltipProvider></ThemeProvider></ErrorBoundary>;
 }

@@ -36,6 +36,13 @@
       "when": 1789856244144,
       "tag": "0004_far_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1789869620124,
+      "tag": "0005_dashing_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }
