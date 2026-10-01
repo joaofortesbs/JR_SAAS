@@ -1,0 +1,1 @@
+- [Dependency firewall recovery](dependency-firewall.md) — combine blocked dependency-parent upgrades in one installation when failed transactions preserve old pins.

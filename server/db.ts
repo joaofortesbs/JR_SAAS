@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { ENV } from "./_core/env";
+import { getMysqlDatabaseUrl } from "./_core/databaseConfig";
 import {
   InsertUser, User, users, exams, topics, studyWindows, fixedCommitments,
   resources, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback,
@@ -10,9 +11,8 @@ import {
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try { _db = drizzle(process.env.DATABASE_URL); }
-    catch (error) { console.warn("[Database] Failed to connect:", error); _db = null; }
+  if (!_db) {
+    _db = drizzle(getMysqlDatabaseUrl());
   }
   return _db;
 }
