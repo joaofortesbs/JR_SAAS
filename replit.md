@@ -1,53 +1,105 @@
 # Central JR
 
-Imported application using React 19, Vite, Express, tRPC, Drizzle and MySQL.
-Keep the existing repository structure, pnpm lockfile, MySQL schema and OAuth
-provider. Do not migrate the database or authentication system without approval.
+React/Vite, Express, tRPC and pnpm. Central JR is the active brand; preserve its
+existing tokens, typography, primitives and light/dark themes.
 
-## Run on Replit
+## Run
 
-- Node.js 20.20 or newer compatible runtime; pnpm 10.
-- The `Start application` workflow runs `PORT=5000 pnpm dev`.
-- Express serves the API and Vite frontend together on port 5000.
-- Vite's middleware configuration already allows Replit preview hosts.
-- `pnpm check` checks TypeScript.
-- `pnpm test` runs unit and MySQL integration tests. Integration tests require a
-  reachable **development** MySQL database with the application's schema. They
-  create and clean up test records; do not point them at production.
-- `pnpm build` builds the frontend and server. Run the built server with
-  `PORT=5000 pnpm start`.
+- Node.js 22+ (required by the pinned Supabase SDK), pnpm 10.
+- Existing workflow: `Start application`, `PORT=5000 pnpm dev`.
+- Express serves the API and Vite together; Replit preview hosts are permitted.
+- `pnpm check`, `pnpm test`, `pnpm build`.
+- `PORT=5000 pnpm start` serves the built app.
 
-## Required external configuration
+## Authentication only
 
-### Database
+Supabase Auth in an **external** project owns accounts and sessions. Supply
+`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` through Replit Secrets. Only HTTPS
+project URLs and `sb_publishable_...` keys are accepted. The no-store
+`/api/auth/config` endpoint exposes exactly these public values at runtime.
+No privileged key, database password or application JWT is needed.
 
-Provide `MYSQL_DATABASE_URL` through Replit Secrets, using the existing
-MySQL-compatible database and a `mysql://` connection URL. The existing
-`DATABASE_URL` remains supported only when it is a MySQL URL. Replit's
-runtime-managed PostgreSQL `DATABASE_URL` is not compatible with this schema and
-must not be repurposed or replaced.
+The browser SDK persists and renews sessions; tRPC sends its access token.
+Express creates a stateless client per request and validates tokens with
+Supabase `getUser(token)`. UUID identities never become old numeric IDs.
+Editable name metadata is presentation only, never administrative authority.
+Account changes cancel and clear query caches. Logout uses Supabase signOut.
+Legacy cookies and mirrored tokens are neither read nor accepted.
 
-The server and Drizzle CLI share connection validation. Use `pnpm db:push` only
-after confirming the target database and reviewing the generated migrations.
-No schema migrations are run automatically at startup.
+Routes: `/login`, `/cadastro`, `/recuperar-senha`, `/redefinir-senha`,
+`/auth/callback`, protected `/painel` and `/conta`. Login and confirmed signup
+enter `/painel` directly with the platform sidebar; `/` redirects to `/painel`.
+`/conta` is secondary and its Início card returns to `/painel`.
+Callback data is removed from the URL
+before rendering. Reset requires verified recovery; a normal sign-in is not
+enough. Reloading the reset screen loses the in-memory recovery grant; request
+a new recovery link. PKCE confirmation/recovery must be opened in the browser
+where requested. Expired/reused links display a request-new-link state.
 
-### Authentication
+### Configure the external project's Auth dashboard
 
-The existing OAuth provider requires these non-secret settings:
+1. Enable Email/password sign-up; require **Confirm email**.
+2. Set Site URL to the intended app origin and allow its exact
+   `/auth/callback` redirect URL. For development use the actual Replit preview
+   origin, not localhost. Register the eventual published origin separately
+   after an authorized deployment; do not infer a published URL.
+3. Supabase's standard email templates using ConfirmationURL support PKCE.
+   The pinned SDK can append `sb_flow_id` to callbacks. Preserve query parameters
+   in email links and use the documented redirect matching rules.
+4. Optional cross-browser email templates can link to
+   `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email` for confirmation,
+   and `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` for recovery.
+   If RedirectTo already contains a query, use `&` rather than `?` or use an
+   exact fixed application callback URL approved for that environment.
+   The app validates hashes with `verifyOtp`, with an allowlist of types.
+   Change templates only with project-owner authorization.
+5. Configure your chosen SMTP service in Supabase Auth SMTP for real users.
+   Default SMTP is team-only, best-effort, with restrictive rate limits; it
+   does **not** establish general deliverability. Configure sender-domain
+   SPF/DKIM/DMARC with that service and review Auth rate limits.
+6. Never put SMTP credentials or email links/tokens in chat, logs or repository.
 
-- `VITE_APP_ID`
-- `VITE_OAUTH_PORTAL_URL`
-- `OAUTH_SERVER_URL`
+`pnpm exec tsx scripts/check-auth-config.ts` checks connectivity and publicly
+visible Email/confirmation settings, returning only booleans/statuses. This
+cannot inspect SMTP or the redirect allowlist and is not an end-to-end test.
+No external project settings, schemas or accounts are changed automatically.
 
-Register the running app's `/api/oauth/callback` URL with that provider.
-Session signing uses `JWT_SECRET` when supplied, otherwise the existing
-`SESSION_SECRET`. Never commit or log these secret values.
+## Study modules intentionally disconnected
 
-### Optional services
+The Painel inside the existing platform shell states that study persistence
+is unavailable; its navigation links open the respective module states.
+Protected legacy module URLs show this explicit state, never load old
+MySQL-dependent study pages. The account page remains accessible via sidebar.
+Save/record controls are disabled. All former domain tRPC procedures first
+require authentication, then return SERVICE_UNAVAILABLE. Uploads return 401
+without authentication and 503 with valid authentication. Retired OAuth and
+storage APIs return 404. No MySQL, Forge or notification handler is imported
+by the running server. No analytics or debug collector runs on auth pages.
 
-- Analytics loads only when both `VITE_ANALYTICS_ENDPOINT` and
-  `VITE_ANALYTICS_WEBSITE_ID` are configured.
-- Essay file uploads require the existing storage service:
-  `BUILT_IN_FORGE_API_URL` and secret `BUILT_IN_FORGE_API_KEY`.
-- Other Forge/Maps template utilities are not needed to start the server or
-  render the login screen.
+The original study pages, MySQL schema, repository helpers and pure planning/
+flow/essay algorithms remain for future authorized persistence work. Four
+unmounted study pages are excluded from TypeScript compilation because they
+use the retired domain response contracts; they are not part of the build.
+The old MySQL integration suites are explicitly excluded from the Auth-only
+test run. Passing current tests makes **no claim** about old persistence.
+Do not migrate, copy or delete external data/accounts or provision business
+tables in Supabase in this stage. Do not repurpose Replit PostgreSQL.
+
+## Verification limits
+
+`pnpm test:ui` includes public flows and explicitly controlled-session tests
+of login-to-Painel, sidebar, reload, module/account navigation and logout.
+Controlled responses are test-only and do not validate external email flows.
+Run local checks and UI tests, then verify real authorized signup,
+email delivery/confirmation, login, reload, refresh, password recovery and
+logout using an owner-approved inbox. Until that is done, the complete
+external email flow is **not validated**. SMTP, redirect configuration or
+missing inbox access must be reported as blockers, not masked by mocks.
+
+Documentation consulted 2026-10-02:
+- https://supabase.com/changelog.md
+- https://supabase.com/docs/guides/auth/passwords
+- https://supabase.com/docs/guides/auth/auth-smtp
+- https://supabase.com/docs/guides/api/api-keys
+- https://supabase.com/docs/guides/auth/choosing-a-server-package
+- https://supabase.com/docs/reference/javascript/auth-getuser

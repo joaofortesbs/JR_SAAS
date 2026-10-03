@@ -1,46 +1,173 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
-import { BookOpen, CalendarDays, Check, ChevronRight, Clock3, FileText, Flame, LineChart as LineChartIcon, ListChecks, Play, Target, Timer } from "lucide-react";
+import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, CircleDashed, Clock3, FileText, LockKeyhole, RefreshCw, Timer, Workflow } from "lucide-react";
 import { useLocation } from "wouter";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const statusLabel: Record<string, string> = { planned: "Planejada", accepted: "Aceita", in_progress: "Em andamento", completed: "Concluída", postponed: "Adiada", cancelled: "Cancelada", partially_completed: "Parcial" };
-const priorityLabel: Record<string, string> = { principal: "Principal", alta: "Alta", media: "Média", baixa: "Baixa" };
-const daysUntil = (date: string) => Math.max(0, Math.ceil((new Date(`${date}T12:00:00`).getTime() - Date.now()) / 86400000));
-const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(" de ", " ");
-
-function Frame({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
-  return <div className="page-frame"><div className="page-heading"><div><p className="eyebrow">Visão geral</p><h1 className="display-title">Painel</h1><p className="body-copy mt-2 max-w-2xl">Sua evolução em um só lugar — direção clara, ritmo visível e o próximo passo sempre acessível.</p></div>{action}</div>{children}</div>;
-}
-
-function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Clock3; label: string; value: string; detail: string; tone: string }) {
-  return <div className="soft-card summary-card"><div className={cn("icon-bubble", `bubble-${tone}`)}><Icon size={18} /></div><div className="min-w-0"><p className="caption">{label}</p><p className="summary-value">{value}</p><p className="caption truncate">{detail}</p></div></div>;
-}
+const destinations = [
+  {
+    path: "/provas",
+    label: "Provas",
+    description: "Organize seus objetivos e acompanhe datas importantes.",
+    note: "Indisponível até a conexão do armazenamento",
+    icon: CalendarDays,
+    tone: "blue",
+  },
+  {
+    path: "/flows",
+    label: "Flows",
+    description: "Transforme intenção em sessões de estudo.",
+    note: "Sessões ainda não podem ser registradas",
+    icon: Workflow,
+    tone: "mint",
+  },
+  {
+    path: "/redacoes",
+    label: "Redações",
+    description: "Escreva, revise e acompanhe seus textos.",
+    note: "Textos ainda não podem ser salvos",
+    icon: FileText,
+    tone: "peach",
+  },
+  {
+    path: "/rotina",
+    label: "Rotina",
+    description: "Encontre espaço para estudar no seu dia a dia.",
+    note: "Sua rotina ainda não pode ser salva",
+    icon: Clock3,
+    tone: "yellow",
+  },
+];
 
 export default function Panel() {
-  const { data, isLoading, error } = trpc.dashboard.useQuery();
-  const { data: activeFlow } = trpc.flows.active.useQuery(undefined, { refetchInterval: 1000 });
-  const { data: series, isLoading: seriesLoading } = trpc.flows.series.useQuery({ days: 7 });
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
-  if (isLoading) return <Frame><div className="soft-card p-12 grid place-items-center"><Timer className="animate-pulse text-[var(--edu-blue-strong)]" /></div></Frame>;
-  if (error) return <Frame><div className="soft-card p-8"><p className="card-title">Não conseguimos carregar seu painel.</p><p className="body-copy mt-2">Seus dados continuam preservados. Tente novamente em alguns instantes.</p></div></Frame>;
+  const firstName = user?.name?.trim().split(/\s+/)[0] || "estudante";
+  const today = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
 
-  const blocks = data?.blocks ?? [];
-  const exams = (data?.exams ?? []).filter(exam => exam.status === "active");
-  const essays = data?.essays ?? [];
-  const completedSessions = (data?.sessions ?? []).filter(session => session.status === "completed");
-  const plannedMinutes = blocks.filter(block => block.status !== "cancelled").reduce((sum, block) => sum + block.durationMinutes, 0);
-  const studiedMinutes = completedSessions.reduce((sum, session) => sum + (session.actualMinutes ?? 0), 0);
-  const execution = blocks.length ? Math.round((blocks.filter(block => block.status === "completed").length / blocks.length) * 100) : 0;
-  const nextBlock = blocks.find(block => ["planned", "accepted", "in_progress"].includes(block.status));
-  const nextExam = exams.slice().sort((a, b) => daysUntil(a.date) - daysUntil(b.date))[0];
-  const latestEssay = essays[0];
+  return (
+    <div className="page-frame panel-page">
+      <div className="page-heading panel-heading">
+        <div>
+          <p className="eyebrow">Visão geral · {today}</p>
+          <h1 className="display-title">Painel</h1>
+          <p className="body-copy mt-2 max-w-2xl">
+            Olá, {firstName}. Este é o seu espaço para dar forma aos próximos passos.
+          </p>
+        </div>
+        <span className="panel-state-chip">
+          <CircleDashed size={15} />
+          Preparação inicial
+        </span>
+      </div>
 
-  return <Frame action={<Button className="soft-button-primary" onClick={() => setLocation("/flows")}><Play size={16} /> Abrir Flow</Button>}>
-    <section className="panel-hero soft-card"><div className="panel-hero-copy"><div className="pill pill-blue"><LineChartIcon size={14} /> Ritmo sustentável</div><h2 className="hero-title mt-5">O progresso fica mais leve quando você consegue enxergá-lo.</h2><p className="body-copy mt-3 max-w-xl">Você estudou {studiedMinutes} minutos registrados. O objetivo não é preencher todos os espaços — é manter o próximo movimento possível.</p><div className="flex flex-wrap gap-3 mt-6"><Button className="soft-button-primary" onClick={() => setLocation(nextBlock ? `/flows?block=${nextBlock.id}` : "/provas")}><Timer size={16} /> {activeFlow ? "Retomar Flow" : nextBlock ? "Continuar plano" : "Configurar primeiro objetivo"}</Button><Button variant="outline" className="soft-button-secondary" onClick={() => setLocation("/provas")}>Ver provas <ChevronRight size={15} /></Button></div></div><div className="panel-hero-orbit"><div className="orbit-ring orbit-ring-back" /><div className="orbit-ring orbit-ring-front" /><div className="panel-hero-number">{execution}<span>%</span></div><p>execução planejada</p></div></section>
-    <div className="summary-grid mt-5"><Metric icon={Clock3} label="Tempo estudado" value={`${studiedMinutes} min`} detail={`${completedSessions.length} sessões concluídas`} tone="blue" /><Metric icon={ListChecks} label="Execução" value={`${execution}%`} detail={`${blocks.filter(block => block.status === "completed").length} de ${blocks.length} blocos`} tone="mint" /><Metric icon={Flame} label="Capacidade" value={`${plannedMinutes} min`} detail="em blocos planejados" tone="peach" /></div>
-    <div className="panel-grid mt-5"><section className="soft-card p-6"><div className="section-row"><div><p className="eyebrow">Evolução do tempo</p><h2 className="card-title mt-1">Últimos 7 dias</h2></div><span className="caption">minutos concluídos</span></div><div className="panel-chart mt-5">{seriesLoading ? <div className="chart-empty"><Timer className="animate-pulse" size={20} /></div> : series?.some(day => day.minutes > 0) ? <ResponsiveContainer width="100%" height="100%"><LineChart data={series} margin={{ top: 12, right: 8, bottom: 0, left: -22 }}><CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" /><XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "var(--edu-text-secondary)", fontSize: 11 }} /><YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--edu-text-secondary)", fontSize: 10 }} allowDecimals={false} /><Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--edu-text-primary)" }} formatter={(value) => [`${value} min`, "Estudo"]} /><Line type="monotone" dataKey="minutes" stroke="var(--edu-blue-strong)" strokeWidth={3} dot={{ r: 3, fill: "var(--edu-blue-strong)", strokeWidth: 0 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer> : <div className="chart-empty"><LineChartIcon size={22} /><div><p className="font-semibold">Seu gráfico começa aqui</p><p className="caption mt-1">Finalize um Flow para transformar tempo em evolução visível.</p></div></div>}</div></section><aside className="soft-card p-6"><div className="section-row"><div><p className="eyebrow">Próxima direção</p><h2 className="card-title mt-1">Sua prova mais próxima</h2></div><Target size={19} className="text-[var(--edu-peach-strong)]" /></div>{nextExam ? <button className="panel-exam-card mt-5 text-left" onClick={() => setLocation(`/provas/${nextExam.id}`)}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{nextExam.name}</p><p className="caption mt-1">{nextExam.institution}</p></div><span className="status-pill status-orange">{priorityLabel[nextExam.priority]}</span></div><div className="deadline-number panel-deadline">{daysUntil(nextExam.date)}<span> dias</span></div><div className="flex items-center justify-between caption"><span>até {dateLabel(nextExam.date)}</span><ChevronRight size={16} /></div></button> : <div className="compact-empty mt-5"><Target size={20} /><div><p className="font-semibold">Nenhuma prova cadastrada</p><p className="caption mt-1">Comece por um prazo que importe para você.</p></div></div>}</aside></div>
-    <div className="content-grid mt-5"><section className="soft-card p-6"><div className="section-row"><div><p className="eyebrow">Próximo movimento</p><h2 className="card-title mt-1">O que fazer agora</h2></div><button className="text-link" onClick={() => setLocation("/flows")}>Abrir Flows <ChevronRight size={15} /></button></div>{nextBlock ? <div className="next-block-row mt-5"><div className="time-chip">{nextBlock.startTime}</div><div className="min-w-0 flex-1"><p className="font-semibold truncate">{nextBlock.title}</p><p className="caption mt-1">{nextBlock.durationMinutes} min · {statusLabel[nextBlock.status]}</p></div><Button size="sm" className="soft-button-primary" onClick={() => setLocation(`/flows?block=${nextBlock.id}`)}><Play size={14} /> Iniciar</Button></div> : <div className="compact-empty mt-5"><Check size={20} /><div><p className="font-semibold">Seu plano está aberto</p><p className="caption mt-1">Cadastre uma prova e gere blocos para começar.</p></div></div>}</section><section className="soft-card p-6"><div className="section-row"><div><p className="eyebrow">Ciclo de escrita</p><h2 className="card-title mt-1">Redações</h2></div><FileText size={19} className="text-[var(--edu-peach-strong)]" /></div><p className="evolution-number mt-5">{essays.length}<span className="caption ml-2">textos</span></p><p className="body-copy mt-2">{latestEssay ? `${latestEssay.title} · ${statusLabel[latestEssay.status] ?? latestEssay.status}` : "Sua primeira redação cria a linha de base da evolução."}</p><Button variant="outline" className="soft-button-secondary mt-5" onClick={() => setLocation("/redacoes")}>{latestEssay ? "Revisar redações" : "Começar escrita"} <ChevronRight size={15} /></Button></section></div>
-  </Frame>;
+      <section className="panel-hero soft-card" aria-labelledby="panel-welcome-title">
+        <div className="panel-hero-copy">
+          <div className="pill pill-blue"><BookOpen size={14} /> Central JR</div>
+          <h2 id="panel-welcome-title" className="hero-title mt-5">
+            Um plano de estudos que começa pelo que importa.
+          </h2>
+          <p className="body-copy mt-3 max-w-xl">
+            Seu painel já está pronto. Assim que o armazenamento estiver conectado,
+            você poderá registrar provas, sessões, rotina e redações por aqui.
+          </p>
+          <div className="flex flex-wrap gap-3 mt-6">
+            <Button className="soft-button-primary" onClick={() => setLocation("/provas")}>
+              Explorar provas <ArrowUpRight size={16} />
+            </Button>
+            <Button
+              variant="outline"
+              className="soft-button-secondary"
+              onClick={() => setLocation("/flows")}
+            >
+              Conhecer os Flows <ChevronRight size={15} />
+            </Button>
+          </div>
+        </div>
+        <div className="panel-hero-orbit panel-storage-mark" aria-hidden="true">
+          <div className="orbit-ring orbit-ring-back" />
+          <div className="orbit-ring orbit-ring-front" />
+          <div className="panel-lock-mark"><LockKeyhole size={27} strokeWidth={1.6} /></div>
+          <p>seu espaço<br />aguarda seus dados</p>
+        </div>
+      </section>
+
+      <section className="panel-storage-note" aria-label="Estado do armazenamento">
+        <div className="panel-storage-icon"><RefreshCw size={17} /></div>
+        <div className="min-w-0">
+          <p className="panel-storage-title">Armazenamento ainda não conectado</p>
+          <p className="caption">
+            Nenhuma informação de estudo foi carregada ou registrada. Seus indicadores
+            aparecerão aqui quando o salvamento estiver disponível.
+          </p>
+        </div>
+        <span className="panel-storage-badge">Aguardando conexão</span>
+      </section>
+
+      <section className="panel-section" aria-labelledby="panel-paths-title">
+        <div className="panel-section-heading">
+          <div>
+            <p className="eyebrow">Seu espaço de estudo</p>
+            <h2 id="panel-paths-title" className="card-title mt-1">Escolha por onde começar</h2>
+          </div>
+          <p className="caption panel-section-aside">Recursos em preparação</p>
+        </div>
+        <div className="panel-path-grid">
+          {destinations.map(({ path, label, description, note, icon: Icon, tone }, index) => (
+            <button
+              key={path}
+              type="button"
+              className="panel-path-card soft-card"
+              onClick={() => setLocation(path)}
+              aria-label={`Abrir ${label}. ${note}.`}
+              style={{ animationDelay: `${index * 70}ms` }}
+            >
+              <div className="panel-path-top">
+                <span className={`icon-bubble bubble-${tone}`}><Icon size={18} /></span>
+                <span className="panel-path-arrow"><ArrowUpRight size={17} /></span>
+              </div>
+              <div className="panel-path-copy">
+                <h3>{label}</h3>
+                <p>{description}</p>
+              </div>
+              <div className="panel-path-foot">
+                <span className="panel-unavailable-dot"><CircleDashed size={13} /></span>
+                <span>{note}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel-lower-grid" aria-label="Sobre seu painel">
+        <div className="soft-card panel-promise">
+          <div className="panel-promise-icon"><Check size={17} /></div>
+          <div>
+            <p className="eyebrow">Um começo honesto</p>
+            <h2 className="card-title mt-1">Sem números inventados.</h2>
+            <p className="body-copy mt-2">
+              Seu tempo estudado, progresso e próximos prazos só serão exibidos depois
+              que houver dados reais para mostrar.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="soft-card panel-next-link"
+          onClick={() => setLocation("/conta")}
+        >
+          <span className="icon-bubble bubble-blue"><Timer size={18} /></span>
+          <span className="panel-next-copy">
+            <span className="eyebrow">Precisa de ajuda?</span>
+            <strong>Veja sua conta</strong>
+            <span className="caption">Gerencie seus dados de acesso.</span>
+          </span>
+          <ChevronRight size={17} />
+        </button>
+      </section>
+    </div>
+  );
 }

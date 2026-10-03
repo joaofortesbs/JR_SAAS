@@ -3,9 +3,11 @@ import { startLogin } from "@/const";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FileText, LayoutDashboard, LogOut, Menu, Moon, Settings2, Sparkles, Sun, Target, TimerReset, Workflow, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileText, LayoutDashboard, LogOut, Menu, Moon, Sparkles, Sun, Target, TimerReset, UserRound, Workflow, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { useTheme } from "@/contexts/ThemeContext";
+import { authMessage } from "@shared/auth";
 
 const primaryItems = [
   { path: "/painel", legacy: ["/", "/hoje", "/evolucao"], label: "Painel", description: "Visão geral", icon: LayoutDashboard },
@@ -33,24 +35,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const { theme, toggleTheme } = useTheme();
+  const dark = theme === "dark";
+  const [logoutError, setLogoutError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 760px)").matches);
+  const sidebar = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const change = () => setIsMobile(query.matches);
+    query.addEventListener("change", change);
+    return () => query.removeEventListener("change", change);
+  }, []);
+  useEffect(() => {
     if (!mobileOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setMobileOpen(false);
+    const previousFocus = document.activeElement as HTMLElement | null;
+    sidebar.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key !== "Tab") return;
+      const items = sidebar.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+      if (!items?.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
   }, [mobileOpen]);
 
-  const toggleTheme = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-  };
   const go = (path: string) => {
     setLocation(path);
     setMobileOpen(false);
     setProfileOpen(false);
+  };
+  useEffect(() => {
+    setMobileOpen(false);
+    setProfileOpen(false);
+  }, [location]);
+  const signOut = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true); setLogoutError("");
+    try { await logout(); setLocation("/login"); }
+    catch (error) { setLogoutError(authMessage(error)); }
+    finally { setLoggingOut(false); }
   };
 
   if (loading) return <div className="min-h-screen grid place-items-center bg-[var(--edu-bg)]"><div className="soft-loader" aria-label="Carregando Central JR" /></div>;
@@ -58,10 +87,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const initials = (user.name ?? "Estudante").split(" ").map(s => s[0]).slice(0, 2).join("").toUpperCase();
   const current = primaryItems.find(item => location.startsWith(item.path) || item.legacy.some(path => path === "/" ? location === "/" : location.startsWith(path)));
-  const currentLabel = current?.label ?? (location.startsWith("/redacoes") ? "Redações" : location.startsWith("/biblioteca") ? "Biblioteca" : location.startsWith("/rotina") ? "Minha rotina" : "Preferências");
+  const currentLabel = current?.label ?? (location.startsWith("/conta") ? "Minha conta" : location.startsWith("/redacoes") ? "Redações" : location.startsWith("/biblioteca") ? "Biblioteca" : location.startsWith("/rotina") ? "Minha rotina" : "Central JR");
 
   return <div className="min-h-screen bg-[var(--edu-bg)] text-[var(--edu-text-primary)]">
-    <aside className={cn("app-sidebar", mobileOpen && "is-open")} aria-label="Navegação da Central JR">
+    <aside ref={sidebar} className={cn("app-sidebar", mobileOpen && "is-open")} aria-label="Navegação da Central JR" inert={isMobile && !mobileOpen} aria-hidden={isMobile && !mobileOpen ? true : undefined}>
       <div className="sidebar-top">
         <div className="brand-row"><div className="brand-mark"><Sparkles size={18} /></div><span className="brand-name">Central JR</span><button className="mobile-close" onClick={() => setMobileOpen(false)} aria-label="Fechar menu"><X size={18} /></button></div>
         <ProfileCard name={user.name ?? "Estudante"} initials={initials} />
@@ -77,15 +106,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
       <div className="sidebar-bottom">
         <div className="sidebar-account-actions">
-          <button className="sidebar-action" onClick={() => go("/configuracoes")}><Settings2 size={17} /><span>Preferências</span></button>
+          <button className="sidebar-action" onClick={() => go("/rotina")} aria-current={location === "/rotina" ? "page" : undefined}><TimerReset size={17} /><span>Minha rotina</span></button>
+          <button className="sidebar-action" onClick={() => go("/conta")} aria-current={location === "/conta" ? "page" : undefined}><UserRound size={17} /><span>Minha conta</span></button>
           <button className="sidebar-action" onClick={toggleTheme}><span className="sidebar-action-icon">{dark ? <Sun size={17} /> : <Moon size={17} />}</span><span>{dark ? "Tema claro" : "Tema escuro"}</span></button>
         </div>
-        <button className="logout-button" onClick={() => logout()}><LogOut size={16} /> Sair da conta</button>
+        {logoutError && <p className="caption px-3" role="alert">{logoutError}</p>}
+        <button className="logout-button" onClick={signOut} disabled={loggingOut}><LogOut size={16} /> {loggingOut ? "Saindo…" : "Sair da conta"}</button>
       </div>
     </aside>
     {mobileOpen && <button className="mobile-backdrop" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
     <main className="app-main">
-      <header className="topbar"><div className="flex items-center gap-3"><button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menu"><Menu size={20} /></button><div><p className="caption">CENTRAL JR / {currentLabel.toUpperCase()}</p><h2 className="section-title">{currentLabel}</h2></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className="profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-expanded={profileOpen} aria-label="Abrir menu do perfil"><Avatar className="h-9 w-9"><AvatarFallback>{initials}</AvatarFallback></Avatar></button>{profileOpen && <div className="profile-menu" role="menu"><p className="caption px-3 pb-2">Conta pessoal</p><button onClick={() => go("/rotina")}><TimerReset size={15} /> Minha rotina</button><button onClick={() => go("/configuracoes")}><Settings2 size={15} /> Preferências</button></div>}</div></div></header>
+      <header className="topbar"><div className="flex items-center gap-3"><button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menu" aria-expanded={mobileOpen}><Menu size={20} /></button><div><p className="caption">CENTRAL JR / {currentLabel.toUpperCase()}</p><h2 className="section-title">{currentLabel}</h2></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className="profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-expanded={profileOpen} aria-label="Abrir menu do perfil"><Avatar className="h-9 w-9"><AvatarFallback>{initials}</AvatarFallback></Avatar></button>{profileOpen && <div className="profile-menu" role="menu"><p className="caption px-3 pb-2">Conta pessoal</p><button role="menuitem" onClick={() => go("/rotina")}><TimerReset size={15} /> Minha rotina</button><button role="menuitem" onClick={() => go("/conta")}><UserRound size={15} /> Minha conta</button></div>}</div></div></header>
       {children}
     </main>
   </div>;

@@ -1,0 +1,75 @@
+import { expect, test } from "@playwright/test";
+
+// Intentionally no signup, email sends, auth bypass, session seeding or mocks.
+// Real email flows require an authorized owner-controlled inbox.
+test("public access journey, keyboard, validation and protected routes", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const forbiddenRequests: string[] = [];
+  let submittedAuth = false;
+  page.on("pageerror", error => pageErrors.push(error.name));
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (/manus|forge/i.test(url.hostname + url.pathname) || /\/api\/trpc\/(dashboard|exams|flows|essays)/.test(url.pathname)) forbiddenRequests.push(url.pathname);
+    if (request.method() === "POST" && url.pathname.startsWith("/auth/v1/")) submittedAuth = true;
+  });
+  await page.goto("/provas");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Entre no seu espaço." })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "E-mail", exact: true })).toHaveAttribute("autocomplete", "username");
+  const signup = page.getByRole("link", { name: "Criar uma conta", exact: true });
+  await signup.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/cadastro$/);
+  await expect(page.locator("form")).toBeVisible();
+  const submit = page.getByRole("button", { name: "Criar minha conta" });
+  await submit.focus();
+  await page.keyboard.press("Enter");
+  const email = page.getByRole("textbox", { name: "E-mail", exact: true });
+  await expect(email).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#auth-email-error")).toBeVisible();
+  await expect(email).toHaveAttribute("aria-describedby", "auth-email-error");
+  await email.focus();
+  const focus = await email.evaluate(element => {
+    const shell = getComputedStyle(element.parentElement!);
+    return { shadow: shell.boxShadow, border: shell.borderColor };
+  });
+  expect(focus.shadow).not.toBe("none");
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#auth-password")).toBeFocused();
+  await page.locator("#auth-name").fill("Teste local");
+  await email.fill("local-test@example.invalid");
+  await page.locator("#auth-password").fill("local-only-password");
+  await page.locator("#auth-confirmation").fill("mismatch");
+  await submit.click();
+  await expect(page.locator("#auth-confirmation-error")).toHaveText("As senhas não coincidem.");
+  await page.getByRole("button", { name: "Mostrar senha", exact: true }).first().focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator("#auth-password")).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Ocultar senha", exact: true }).focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator("#auth-password")).toHaveAttribute("type", "password");
+  await page.getByRole("link", { name: "Entrar", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole("link", { name: "Recuperar acesso", exact: true }).click();
+  await expect(page).toHaveURL(/\/recuperar-senha$/);
+  await expect(page.getByRole("button", { name: "Enviar link de recuperação" })).toBeVisible();
+  await page.getByRole("link", { name: "Voltar para entrar" }).click();
+  const theme = page.getByRole("button", { name: "Ativar tema escuro" });
+  await theme.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.getByRole("button", { name: "Ativar tema claro" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.goto("/redefinir-senha");
+  await expect(page.getByRole("heading", { name: "Precisamos verificar o link." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Atualizar senha" })).toHaveCount(0);
+  await page.goto("/auth/callback?error=access_denied&type=recovery");
+  await expect(page.getByRole("heading", { name: "Este link não abriu." })).toBeVisible();
+  await expect(page).toHaveURL(/\/auth\/callback$/);
+  await expect(page.getByRole("link", { name: "Solicitar recuperação" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+  expect(forbiddenRequests).toEqual([]);
+  expect(submittedAuth).toBe(false);
+});
