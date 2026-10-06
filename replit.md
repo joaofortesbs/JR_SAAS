@@ -11,6 +11,10 @@ existing tokens, typography, primitives and light/dark themes.
 - `pnpm check`, `pnpm test`, `pnpm build`.
 - `PORT=5000 pnpm start` serves the built app.
 
+After task merges, `scripts/post-merge.sh` restores dependencies from the
+lockfile, checks TypeScript and builds the app. It runs without prompts and
+never migrates databases or changes external Supabase settings.
+
 ## Authentication only
 
 Supabase Auth in an **external** project owns accounts and sessions. Supply
