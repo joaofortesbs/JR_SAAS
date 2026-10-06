@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ddU68YjQBXmiwM1vP0x3q"
+uri = "file://docs/superpowers/specs/2026-10-05-supabase-study-persistence-design.md"
+type = "text"
+title = "Especificação — salvamento no Supabase"
+description = "Desenho completo de usuários, provas, redações e Flows, com proteção por conta, recuperação e critérios de teste. Documento para revisão antes das alterações no banco."
+logical_id = "c339bc29-8859-4939-95d8-822fa5468a0d"
+content_hash = "sha256:4ec0fec5eb0a4771c6101f1fc0143acfd3efb96a900b528ebb2ae01caced21fb"
+size = 13876
+mtime_ms = 1791251676629
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:688f2e8b-97e2-48b7-aee4-f96edc4c7101/c339bc29-8859-4939-95d8-822fa5468a0d/12d52f76-ac20-4b0c-ad44-8bb25cd28b5a"
+storage_version_token = "1791251743279301"
+content_type = "text/markdown"
