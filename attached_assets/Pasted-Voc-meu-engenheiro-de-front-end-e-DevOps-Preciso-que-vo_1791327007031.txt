@@ -1,0 +1,80 @@
+Você é meu engenheiro de front-end e DevOps. Preciso que você corrija completamente um problema de configuração do Supabase na minha aplicação web hospedada no Netlify.
+
+Contexto:
+- A aplicação está em produção em: https://central-jr.netlify.app
+- O deploy atual está verde e publicado no Netlify.
+- Já configurei as variáveis de ambiente no Netlify (Environment variables) com as chaves do Supabase.
+- Na tela de login/produção, aparece a mensagem:
+  "Autenticação indisponível. A configuração do Supabase precisa ser verificada.
+   [Voltar ao login](https://central-jr.netlify.app/login)"
+
+Objetivo:
+Quero que você ajuste todo o código necessário para que:
+1. O cliente Supabase seja inicializado corretamente no front-end.
+2. As variáveis de ambiente do Supabase (URL e chave pública/anon) sejam lidas de forma correta no ambiente de produção (Netlify + Vite).
+3. A mensagem de erro “Autenticação indisponível. A configuração do Supabase precisa ser verificada.” desapareça e o login funcione.
+
+O que você deve fazer:
+
+1. Identificar o arquivo que inicializa o cliente Supabase
+   - Procure no projeto por algo como:
+     - `src/lib/supabase.ts`
+     - `src/utils/supabaseClient.ts`
+     - `src/supabase.ts`
+     - ou qualquer lugar onde `createClient` de `@supabase/supabase-js` é chamado.
+   - Se não existir, crie um arquivo adequado (ex.: `src/lib/supabase.ts`).
+
+2. Ajustar a leitura das variáveis de ambiente para Vite
+   - No front-end (código que roda no navegador com Vite), as variáveis DEVEM ser acessadas como:
+     - `import.meta.env.VITE_SUPABASE_URL`
+     - `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY` (ou `VITE_SUPABASE_ANON_KEY`)
+   - Garanta que o código de inicialização do Supabase use exatamente esses nomes.
+   - Exemplo esperado:
+     ```ts
+     import { createClient } from '@supabase/supabase-js'
+
+     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+
+     export const supabase = createClient(supabaseUrl, supabaseKey)
+     ```
+   - Se houver uso de `process.env.SUPABASE_...` no front-end, migre para `import.meta.env.VITE_...`.
+
+3. Verificar e padronizar os nomes das variáveis no .env (se existir)
+   - Se houver `.env`, `.env.local`, `.env.example`, etc., ajuste para:
+     - `VITE_SUPABASE_URL=...`
+     - `VITE_SUPABASE_PUBLISHABLE_KEY=...`
+   - Garanta que não haja conflito entre `SUPABASE_...` e `VITE_SUPABASE_...`.
+
+4. Verificar onde a mensagem de erro é exibida
+   - Procure no código a string:
+     - "Autenticação indisponível. A configuração do Supabase precisa ser verificada."
+   - Entenda em que condição essa mensagem aparece (ex.: `if (!supabaseUrl || !supabaseKey)`).
+   - Ajuste a lógica para que, com as variáveis corretas, essa condição não seja verdadeira.
+   - Se necessário, adicione logs ou tratamentos de erro mais claros no console do navegador.
+
+5. Garantir que não haja inicialização duplicada ou incorreta do Supabase
+   - Verifique se não há múltiplos clientes Supabase sendo criados de formas diferentes.
+   - Centralize a inicialização em um único arquivo (ex.: `src/lib/supabase.ts`) e importe esse cliente nos demais lugares.
+
+6. Testar localmente (no Replit)
+   - Crie ou ajuste um `.env.local` com valores fictícios (ou reais, se seguro) no formato:
+     ```env
+     VITE_SUPABASE_URL=https://SEU_PROJETO.supabase.co
+     VITE_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_ANON
+     ```
+   - Rode a aplicação no Replit e confirme que:
+     - Não há erros de “undefined” para URL ou chave do Supabase.
+     - O cliente Supabase é criado sem lançar exceção.
+
+7. Me entregar:
+   - O código final do arquivo que inicializa o Supabase.
+   - Um resumo curto do que foi alterado (arquivos tocados e principais mudanças).
+   - Instruções de quais variáveis de ambiente eu preciso configurar no Netlify (nomes exatos, ex.: `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`).
+
+Importante:
+- Não remova funcionalidades existentes de autenticação, apenas corrija a configuração.
+- Mantenha o código limpo, tipado (se estiver em TypeScript) e consistente com o restante do projeto.
+- Se encontrar outros pontos onde as variáveis do Supabase são usadas de forma errada, corrija-os também.
+
+Comece analisando a estrutura do projeto e me diga qual arquivo você vai modificar ou criar para a inicialização do Supabase.

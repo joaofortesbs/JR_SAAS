@@ -13,16 +13,17 @@ const fixtureUser = {
 };
 
 async function installAuthFixture(page: Page) {
-  await page.route("**/api/auth/config", route => route.fulfill({
-    json: { url: "https://auth-navigation.example.invalid", publishableKey: "sb_publishable_navigation_test" },
-  }));
+  // No server configuration endpoint exists in the static deployment.
+  page.on("request", request => {
+    expect(new URL(request.url()).pathname).not.toBe("/api/auth/config");
+  });
   const timestamp = Math.floor(Date.now() / 1000);
   const token = [
     Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"),
     Buffer.from(JSON.stringify({ sub: fixtureUser.id, iat: timestamp, exp: timestamp + 3600, aud: "authenticated" })).toString("base64url"),
     "test-only-not-a-real-signature",
   ].join(".");
-  await page.route("https://auth-navigation.example.invalid/auth/v1/**", async route => {
+  await page.route("**/auth/v1/**", async route => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/token")) return route.fulfill({ json: {
       access_token: token, refresh_token: "test-only-refresh", expires_in: 3600,

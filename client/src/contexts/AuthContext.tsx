@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import type { Account } from "@shared/auth";
 import { authMessage } from "@shared/auth";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase, SupabaseConfigurationError } from "@/lib/supabase";
 
 type AuthState = {
   user: Account | null; loading: boolean; error: string | null;
@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       identity.current = next?.user.id ?? null;
       setSession(next);
+      if (next) setError(null);
     };
     void (async () => {
       const url = new URL(window.location.href);
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         accept(null);
         if (active) {
-          setError(e instanceof Error && e.message.startsWith("Autenticação indisponível") ? e.message : authMessage(e));
+          setError(e instanceof SupabaseConfigurationError ? e.message : authMessage(e));
           if (callback) setCallbackStatus("error");
         }
       } finally { if (active) setLoading(false); }
