@@ -1,2 +1,3 @@
 - [Dependency firewall recovery](dependency-firewall.md) — combine blocked dependency-parent upgrades in one installation when failed transactions preserve old pins.
-- [Supabase Auth boundary](supabase-auth-boundary.md) — Auth-only scope; preserve PKCE correlation before callback URL cleanup.
+- [Supabase Auth callbacks](supabase-auth-boundary.md) — preserve PKCE correlation before callback URL cleanup.
+- [Study UI before database](study-ui-before-database.md) — release and correct all section interfaces before changing the external Supabase study storage.
