@@ -69,7 +69,7 @@ export default function AccountPage({ unavailable = false, embedded = false }: A
         <div className="account-intro">
           <span className="auth-eyebrow">MINHA CONTA</span>
           <h1>Bom ter você por aqui, <em>{displayName.split(" ")[0]}.</em></h1>
-          <p>Esta é sua conta Central JR. Vamos deixar claro o que já está disponível e o que ainda não está.</p>
+          <p>Perfil autenticado somente para leitura. Os dados abaixo vêm da sua conta.</p>
         </div>
 
         {logoutError && <div className="auth-alert is-error" role="alert"><AlertCircle size={17} />{logoutError}</div>}
@@ -98,16 +98,16 @@ export default function AccountPage({ unavailable = false, embedded = false }: A
           <div className="account-section-heading">
             <div>
               <span className="auth-eyebrow">COM TRANSPARÊNCIA</span>
-              <h2 id="account-persistence-heading">Seus estudos ainda não são salvos.</h2>
+              <h2 id="account-persistence-heading">Estudos em memória temporária.</h2>
             </div>
             <span className="account-lock-mark"><LockKeyhole size={19} /></span>
           </div>
-          <p>A autenticação da conta está funcionando, mas a persistência dos dados de estudo ainda não está disponível. Suas ações de estudo não serão guardadas entre sessões.</p>
+          <p>Provas, redações, rotina e sessões desta visita existem apenas na memória do navegador. Nada é escrito no Supabase ou enviado para outro serviço.</p>
           <div className="account-disabled-actions">
-            <button type="button" disabled><BookOpen size={17} /> Salvar plano de estudos <span>Indisponível</span></button>
-            <button type="button" disabled><CalendarDays size={17} /> Registrar rotina <span>Indisponível</span></button>
+            <button type="button" disabled><BookOpen size={17} /> Dados de estudo <span>Temporários</span></button>
+            <button type="button" disabled><CalendarDays size={17} /> Recarregar ou sair <span>Descarta tudo</span></button>
           </div>
-          <small>Não insira informações de estudo esperando que sejam salvas.</small>
+          <small>Trocar de conta também limpa os dados temporários.</small>
         </section>
 
         <nav className="account-navigation" aria-label="Navegação">

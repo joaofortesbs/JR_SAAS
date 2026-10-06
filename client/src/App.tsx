@@ -8,9 +8,15 @@ import AuthPage from "./pages/Auth";
 import AccountPage from "./pages/Account";
 import AppShell from "./components/AppShell";
 import Panel from "./pages/Panel";
-import StudyUnavailable from "./pages/StudyUnavailable";
 import NotFound from "./pages/NotFound";
 import { PLATFORM_HOME } from "./lib/navigation";
+import { StudyProvider } from "./lib/study";
+import Exams, { ExamDetail } from "./pages/Exams";
+import Flows from "./pages/Flows";
+import Essays from "./pages/Essays";
+import Home from "./pages/Home";
+import Routine from "./pages/Routine";
+import Library from "./pages/Library";
 
 function Platform() {
   const { loading, user, error, recovery } = useAuth();
@@ -18,23 +24,25 @@ function Platform() {
   if (error && !user) return <main className="page-frame"><p role="alert">{error}</p><a href="/login">Voltar ao login</a></main>;
   if (!user) return <Redirect to="/login" />;
   if (recovery) return <Redirect to="/redefinir-senha" />;
-  return <AppShell><Switch>
+  return <StudyProvider key={user.id} ownerId={user.id}><AppShell><Switch>
     <Route path="/"><Redirect to={PLATFORM_HOME} /></Route>
     <Route path="/painel"><Panel /></Route>
     <Route path="/conta"><AccountPage embedded /></Route>
     <Route path="/hoje"><Redirect to={PLATFORM_HOME} /></Route>
     <Route path="/evolucao"><Redirect to={PLATFORM_HOME} /></Route>
-    <Route path="/plano"><Redirect to="/flows" /></Route>
-    <Route path="/provas/:id"><StudyUnavailable module="exams" /></Route>
-    <Route path="/provas"><StudyUnavailable module="exams" /></Route>
-    <Route path="/flows"><StudyUnavailable module="flows" /></Route>
-    <Route path="/redacoes/:id"><StudyUnavailable module="essays" /></Route>
-    <Route path="/redacoes"><StudyUnavailable module="essays" /></Route>
-    <Route path="/rotina"><StudyUnavailable module="routine" /></Route>
-    <Route path="/biblioteca"><StudyUnavailable module="resources" /></Route>
+    <Route path="/provas/:id">{params => <ExamDetail id={Number(params.id)} />}</Route>
+    <Route path="/provas"><Exams /></Route>
+    <Route path="/flows"><Flows /></Route>
+    <Route path="/redacoes/nova"><Essays /></Route>
+    <Route path="/redacoes/:id"><Essays /></Route>
+    <Route path="/redacoes"><Essays /></Route>
+    <Route path="/plano/:id"><Home /></Route>
+    <Route path="/plano"><Home /></Route>
+    <Route path="/rotina"><Routine /></Route>
+    <Route path="/biblioteca"><Library /></Route>
     <Route path="/configuracoes"><Redirect to="/conta" /></Route>
     <Route><NotFound /></Route>
-  </Switch></AppShell>;
+  </Switch></AppShell></StudyProvider>;
 }
 export default function App() {
   return <ErrorBoundary><ThemeProvider defaultTheme="light" switchable><TooltipProvider><Toaster />

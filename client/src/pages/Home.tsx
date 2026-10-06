@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
+import { study as trpc } from "@/lib/study";
 import { BookOpen, CalendarClock, Check, ChevronRight, CircleAlert, Clock3, FileText, Flame, Library, Link2, ListChecks, Loader2, LockKeyhole, Plus, RefreshCw, RotateCcw, Sparkles, Target, Timer, TrendingUp, Upload, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";

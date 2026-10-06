@@ -1,46 +1,22 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, CircleDashed, Clock3, FileText, LockKeyhole, RefreshCw, Timer, Workflow } from "lucide-react";
+import { study as trpc } from "@/lib/study";
+import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, Clock3, FileText, Timer, Workflow } from "lucide-react";
 import { useLocation } from "wouter";
 
 const destinations = [
-  {
-    path: "/provas",
-    label: "Provas",
-    description: "Organize seus objetivos e acompanhe datas importantes.",
-    note: "Indisponível até a conexão do armazenamento",
-    icon: CalendarDays,
-    tone: "blue",
-  },
-  {
-    path: "/flows",
-    label: "Flows",
-    description: "Transforme intenção em sessões de estudo.",
-    note: "Sessões ainda não podem ser registradas",
-    icon: Workflow,
-    tone: "mint",
-  },
-  {
-    path: "/redacoes",
-    label: "Redações",
-    description: "Escreva, revise e acompanhe seus textos.",
-    note: "Textos ainda não podem ser salvos",
-    icon: FileText,
-    tone: "peach",
-  },
-  {
-    path: "/rotina",
-    label: "Rotina",
-    description: "Encontre espaço para estudar no seu dia a dia.",
-    note: "Sua rotina ainda não pode ser salva",
-    icon: Clock3,
-    tone: "yellow",
-  },
+  { path: "/provas", label: "Provas", description: "Objetivos, datas e conteúdos.", icon: CalendarDays, tone: "blue" },
+  { path: "/flows", label: "Flows", description: "Sessões de foco e histórico.", icon: Workflow, tone: "mint" },
+  { path: "/plano", label: "Plano", description: "Organize blocos de estudo.", icon: CalendarDays, tone: "yellow" },
+  { path: "/redacoes", label: "Redações", description: "Textos, partes e versões.", icon: FileText, tone: "peach" },
+  { path: "/rotina", label: "Rotina", description: "Janelas e compromissos.", icon: Clock3, tone: "yellow" },
 ];
 
 export default function Panel() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const { data, isLoading, error } = trpc.dashboard.useQuery();
+  const utils = trpc.useUtils();
   const firstName = user?.name?.trim().split(/\s+/)[0] || "estudante";
   const today = new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
@@ -48,6 +24,11 @@ export default function Panel() {
     month: "long",
   }).format(new Date());
 
+  const exams = data?.exams ?? [];
+  const essays = data?.essays ?? [];
+  const blocks = data?.blocks ?? [];
+  const completed = blocks.filter(block => block.status === "completed");
+  const plannedMinutes = (data?.windows ?? []).reduce((sum, window) => sum + window.maxMinutes, 0);
   return (
     <div className="page-frame panel-page">
       <div className="page-heading panel-heading">
@@ -58,9 +39,9 @@ export default function Panel() {
             Olá, {firstName}. Este é o seu espaço para dar forma aos próximos passos.
           </p>
         </div>
-        <span className="panel-state-chip">
-          <CircleDashed size={15} />
-          Preparação inicial
+          <span className="panel-state-chip">
+          <Timer size={15} />
+          Sessão temporária
         </span>
       </div>
 
@@ -71,8 +52,7 @@ export default function Panel() {
             Um plano de estudos que começa pelo que importa.
           </h2>
           <p className="body-copy mt-3 max-w-xl">
-            Seu painel já está pronto. Assim que o armazenamento estiver conectado,
-            você poderá registrar provas, sessões, rotina e redações por aqui.
+            Provas, textos e sessões ficam disponíveis durante esta sessão. Nada é enviado ou mantido após sair.
           </p>
           <div className="flex flex-wrap gap-3 mt-6">
             <Button className="soft-button-primary" onClick={() => setLocation("/provas")}>
@@ -90,21 +70,18 @@ export default function Panel() {
         <div className="panel-hero-orbit panel-storage-mark" aria-hidden="true">
           <div className="orbit-ring orbit-ring-back" />
           <div className="orbit-ring orbit-ring-front" />
-          <div className="panel-lock-mark"><LockKeyhole size={27} strokeWidth={1.6} /></div>
-          <p>seu espaço<br />aguarda seus dados</p>
+          <div className="panel-lock-mark"><BookOpen size={27} strokeWidth={1.6} /></div>
+          <p>um espaço<br />feito por você</p>
         </div>
       </section>
 
-      <section className="panel-storage-note" aria-label="Estado do armazenamento">
-        <div className="panel-storage-icon"><RefreshCw size={17} /></div>
+      <section className="panel-storage-note" aria-label="Atividade desta sessão">
+        <div className="panel-storage-icon"><Timer size={17} /></div>
         <div className="min-w-0">
-          <p className="panel-storage-title">Armazenamento ainda não conectado</p>
-          <p className="caption">
-            Nenhuma informação de estudo foi carregada ou registrada. Seus indicadores
-            aparecerão aqui quando o salvamento estiver disponível.
-          </p>
+          <p className="panel-storage-title">{error ? "Não foi possível carregar a atividade" : isLoading ? "Atualizando atividade…" : "Atividade desta sessão"}</p>
+          <p className="caption">{error ? "Tente novamente em instantes." : `${exams.length} provas · ${essays.length} redações · ${completed.length} sessões concluídas · ${plannedMinutes} min nas janelas de estudo.`}</p>
         </div>
-        <span className="panel-storage-badge">Aguardando conexão</span>
+        {error ? <Button variant="outline" className="soft-button-secondary shrink-0" onClick={() => utils.dashboard.invalidate()}>Tentar novamente</Button> : <span className="panel-storage-badge">Só memória</span>}
       </section>
 
       <section className="panel-section" aria-labelledby="panel-paths-title">
@@ -113,16 +90,16 @@ export default function Panel() {
             <p className="eyebrow">Seu espaço de estudo</p>
             <h2 id="panel-paths-title" className="card-title mt-1">Escolha por onde começar</h2>
           </div>
-          <p className="caption panel-section-aside">Recursos em preparação</p>
+          <p className="caption panel-section-aside">{blocks.length} sessões no plano</p>
         </div>
         <div className="panel-path-grid">
-          {destinations.map(({ path, label, description, note, icon: Icon, tone }, index) => (
+          {destinations.map(({ path, label, description, icon: Icon, tone }, index) => (
             <button
               key={path}
               type="button"
               className="panel-path-card soft-card"
               onClick={() => setLocation(path)}
-              aria-label={`Abrir ${label}. ${note}.`}
+              aria-label={`Abrir ${label}.`}
               style={{ animationDelay: `${index * 70}ms` }}
             >
               <div className="panel-path-top">
@@ -134,8 +111,8 @@ export default function Panel() {
                 <p>{description}</p>
               </div>
               <div className="panel-path-foot">
-                <span className="panel-unavailable-dot"><CircleDashed size={13} /></span>
-                <span>{note}</span>
+                <span className="panel-unavailable-dot"><ArrowUpRight size={13} /></span>
+                <span>Abrir área</span>
               </div>
             </button>
           ))}
@@ -147,11 +124,8 @@ export default function Panel() {
           <div className="panel-promise-icon"><Check size={17} /></div>
           <div>
             <p className="eyebrow">Um começo honesto</p>
-            <h2 className="card-title mt-1">Sem números inventados.</h2>
-            <p className="body-copy mt-2">
-              Seu tempo estudado, progresso e próximos prazos só serão exibidos depois
-              que houver dados reais para mostrar.
-            </p>
+            <h2 className="card-title mt-1">Seus dados ficam no navegador.</h2>
+            <p className="body-copy mt-2">Esta sessão é temporária e isolada da conta. Recarregar, sair ou trocar de conta descarta tudo.</p>
           </div>
         </div>
         <button

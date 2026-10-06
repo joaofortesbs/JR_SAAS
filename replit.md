@@ -68,26 +68,38 @@ visible Email/confirmation settings, returning only booleans/statuses. This
 cannot inspect SMTP or the redirect allowlist and is not an end-to-end test.
 No external project settings, schemas or accounts are changed automatically.
 
-## Study modules intentionally disconnected
+## Temporary study interfaces — no external database changes
 
-The Painel inside the existing platform shell states that study persistence
-is unavailable; its navigation links open the respective module states.
-Protected legacy module URLs show this explicit state, never load old
-MySQL-dependent study pages. The account page remains accessible via sidebar.
-Save/record controls are disabled. All former domain tRPC procedures first
+The user requires all study interfaces to be restored and corrected **before**
+any external Supabase study database or storage changes. In this first phase,
+the user approved complete temporary interactions in browser memory only.
+There are no seeded examples, browser-storage study records or cloud saves.
+A visible notice explains that reloading, logout or changing account discards
+this temporary workspace.
+
+`StudyProvider` creates an account-keyed in-memory workspace; the `study`
+hooks operate only on that workspace, separately from the real authenticated
+tRPC client. Original study interfaces use these hooks for exams, topics,
+routine, planning, Flows, resources and essay editing. Pure planning and time
+helpers do not connect to a database. The account and authentication remain
+real Supabase Auth features.
+
+The backend study APIs remain disconnected. All former domain tRPC procedures first
 require authentication, then return SERVICE_UNAVAILABLE. Uploads return 401
 without authentication and 503 with valid authentication. Retired OAuth and
 storage APIs return 404. No MySQL, Forge or notification handler is imported
 by the running server. No analytics or debug collector runs on auth pages.
 
-The original study pages, MySQL schema, repository helpers and pure planning/
-flow/essay algorithms remain for future authorized persistence work. Four
-unmounted study pages are excluded from TypeScript compilation because they
-use the retired domain response contracts; they are not part of the build.
+The original MySQL schema and repository helpers remain for future review,
+but are not imported at runtime. Study interfaces are included in TypeScript
+checks and build again, using explicit temporary contracts.
 The old MySQL integration suites are explicitly excluded from the Auth-only
 test run. Passing current tests makes **no claim** about old persistence.
-Do not migrate, copy or delete external data/accounts or provision business
-tables in Supabase in this stage. Do not repurpose Replit PostgreSQL.
+Do not migrate, copy or delete external data/accounts, provision study tables,
+change policies or create Supabase Storage buckets in this phase. The user
+chose Supabase for eventual cross-device persistence, but the full scope
+requires approval **after the interface corrections**. Do not repurpose
+Replit PostgreSQL.
 
 ## Verification limits
 

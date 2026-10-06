@@ -1,10 +1,7 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
   "exclude": [
-    "node_modules", "build", "dist", "**/*.test.ts",
-    "client/src/pages/Home.tsx",
-    "client/src/pages/Exams.tsx", "client/src/pages/Flows.tsx",
-    "client/src/pages/Essays.tsx"
+    "node_modules", "build", "dist", "**/*.test.ts"
   ],
   "compilerOptions": {
     "incremental": true,

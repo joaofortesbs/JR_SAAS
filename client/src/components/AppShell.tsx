@@ -3,7 +3,7 @@ import { startLogin } from "@/const";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FileText, LayoutDashboard, LogOut, Menu, Moon, Sparkles, Sun, Target, TimerReset, UserRound, Workflow, X } from "lucide-react";
+import { BookMarked, CalendarDays, FileText, LayoutDashboard, LogOut, Menu, Moon, Sparkles, Sun, Target, TimerReset, UserRound, Workflow, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -13,7 +13,9 @@ const primaryItems = [
   { path: "/painel", legacy: ["/", "/hoje", "/evolucao"], label: "Painel", description: "Visão geral", icon: LayoutDashboard },
   { path: "/provas", legacy: [], label: "Provas", description: "Prazos e objetivos", icon: Target },
   { path: "/redacoes", legacy: [], label: "Redações", description: "Escrita com direção", icon: FileText },
-  { path: "/flows", legacy: ["/plano"], label: "Flows", description: "Tempo em movimento", icon: Workflow },
+  { path: "/flows", legacy: [], label: "Flows", description: "Tempo em movimento", icon: Workflow },
+  { path: "/plano", legacy: [], label: "Plano", description: "Organizar a semana", icon: CalendarDays },
+  { path: "/biblioteca", legacy: [], label: "Biblioteca", description: "Materiais de estudo", icon: BookMarked },
 ];
 
 function ProfileCard({ name, initials }: { name: string; initials: string }) {
@@ -117,6 +119,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     {mobileOpen && <button className="mobile-backdrop" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
     <main className="app-main">
       <header className="topbar"><div className="flex items-center gap-3"><button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menu" aria-expanded={mobileOpen}><Menu size={20} /></button><div><p className="caption">CENTRAL JR / {currentLabel.toUpperCase()}</p><h2 className="section-title">{currentLabel}</h2></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className="profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-expanded={profileOpen} aria-label="Abrir menu do perfil"><Avatar className="h-9 w-9"><AvatarFallback>{initials}</AvatarFallback></Avatar></button>{profileOpen && <div className="profile-menu" role="menu"><p className="caption px-3 pb-2">Conta pessoal</p><button role="menuitem" onClick={() => go("/rotina")}><TimerReset size={15} /> Minha rotina</button><button role="menuitem" onClick={() => go("/conta")}><UserRound size={15} /> Minha conta</button></div>}</div></div></header>
+      <div className="mx-4 mt-3 rounded-xl border border-[var(--edu-blue-strong)]/20 bg-[var(--edu-blue-soft)] px-4 py-3 text-sm leading-relaxed sm:mx-8" role="status">
+        <strong>Modo temporário:</strong> seus estudos existem somente nesta sessão em memória. Recarregar, sair ou trocar de conta descarta provas, textos, rotina e sessões. Nada é gravado em armazenamento nem enviado.
+      </div>
       {children}
     </main>
   </div>;
