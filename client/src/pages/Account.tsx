@@ -5,11 +5,13 @@ import { authMessage } from "@shared/auth";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
 import { PLATFORM_HOME } from "@/lib/navigation";
+import { useStudyPersistenceStatus } from "@/lib/study";
 
 type AccountPageProps = { unavailable?: boolean; embedded?: boolean };
 
 export default function AccountPage({ unavailable = false, embedded = false }: AccountPageProps) {
   const { user, loading, error: authError, logout } = useAuth();
+  const persistence = useStudyPersistenceStatus();
   const { theme, toggleTheme } = useTheme();
   const [, navigate] = useLocation();
   const [logoutError, setLogoutError] = useState("");
@@ -98,16 +100,17 @@ export default function AccountPage({ unavailable = false, embedded = false }: A
           <div className="account-section-heading">
             <div>
               <span className="auth-eyebrow">COM TRANSPARÊNCIA</span>
-              <h2 id="account-persistence-heading">Estudos em memória temporária.</h2>
+              <h2 id="account-persistence-heading">{persistence.isLoading ? "Consultando estudos da conta." : persistence.error ? "Não foi possível confirmar os estudos." : "Estudos vinculados à sua conta."}</h2>
             </div>
             <span className="account-lock-mark"><LockKeyhole size={19} /></span>
           </div>
-          <p>Provas, redações, rotina e sessões desta visita existem apenas na memória do navegador. Nada é escrito no Supabase ou enviado para outro serviço.</p>
+          <p>Provas, tópicos, redações, planejamento e Flows usam o Supabase com a sessão autenticada. Rotina e biblioteca ficam somente na memória desta visita; não são salvas remotamente.</p>
           <div className="account-disabled-actions">
-            <button type="button" disabled><BookOpen size={17} /> Dados de estudo <span>Temporários</span></button>
-            <button type="button" disabled><CalendarDays size={17} /> Recarregar ou sair <span>Descarta tudo</span></button>
+            <button type="button" disabled><BookOpen size={17} /> Estudos <span>{persistence.error ? "Falha de leitura" : persistence.isLoading ? "Consultando" : "Supabase"}</span></button>
+            <button type="button" disabled><CalendarDays size={17} /> Rotina e biblioteca <span>Temporárias</span></button>
           </div>
-          <small>Trocar de conta também limpa os dados temporários.</small>
+          {persistence.error && <button type="button" className="account-nav-link mt-4" onClick={() => void persistence.refresh()}>Tentar consultar novamente</button>}
+          <small>Ao sair ou trocar de conta, os dados privados do usuário anterior são removidos da tela.</small>
         </section>
 
         <nav className="account-navigation" aria-label="Navegação">

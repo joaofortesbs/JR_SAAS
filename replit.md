@@ -68,38 +68,44 @@ visible Email/confirmation settings, returning only booleans/statuses. This
 cannot inspect SMTP or the redirect allowlist and is not an end-to-end test.
 No external project settings, schemas or accounts are changed automatically.
 
-## Temporary study interfaces — no external database changes
+## Approved external Supabase study persistence
 
-The user requires all study interfaces to be restored and corrected **before**
-any external Supabase study database or storage changes. In this first phase,
-the user approved complete temporary interactions in browser memory only.
-There are no seeded examples, browser-storage study records or cloud saves.
-A visible notice explains that reloading, logout or changing account discards
-this temporary workspace.
+UI restoration was completed first. The user subsequently approved the complete
+specification in `docs/superpowers/specs/2026-10-05-supabase-study-persistence-design.md`
+and authorized its migrations in the existing external Supabase project.
+Native `auth.users` remains the ONLY credential authority. No password or
+duplicate user table, Replit database replacement, or legacy MySQL migration.
 
-`StudyProvider` creates an account-keyed in-memory workspace; the `study`
-hooks operate only on that workspace, separately from the real authenticated
-tRPC client. Original study interfaces use these hooks for exams, topics,
-routine, planning, Flows, resources and essay editing. Pure planning and time
-helpers do not connect to a database. The account and authentication remain
-real Supabase Auth features.
+`server/study.ts` handles authenticated `study.snapshot` and `study.mutate`.
+Each account-bound request forwards only the publishable key and verified JWT.
+Explicit grants/RLS and composite owner foreign keys protect every study table.
+The frontend facade keeps existing domain interfaces and reconciles through
+Realtime/focus/periodic authoritative snapshots, without fake successful saves.
+Request IDs deduplicate mutations; revisions protect essay and Flow changes.
 
-The backend study APIs remain disconnected. All former domain tRPC procedures first
-require authentication, then return SERVICE_UNAVAILABLE. Uploads return 401
-without authentication and 503 with valid authentication. Retired OAuth and
-storage APIs return 404. No MySQL, Forge or notification handler is imported
-by the running server. No analytics or debug collector runs on auth pages.
+Exams/topics, essays/parts/manual feedback/full snapshots, generated planning
+blocks, Flow sessions and execution periods use `public.jr_*` tables. Official
+Flow timestamps and millisecond durations can only be changed through the narrow
+owner-checked command in the non-exposed `jr_private` schema. At most one running
+or paused Flow per account; logout/reload/device switches do NOT pause it.
+Paused intervals do not count. Full essay restoration includes personalization.
+Autosaves serialize writes, keep dirty drafts on failure and use base revisions.
 
-The original MySQL schema and repository helpers remain for future review,
-but are not imported at runtime. Study interfaces are included in TypeScript
-checks and build again, using explicit temporary contracts.
-The old MySQL integration suites are explicitly excluded from the Auth-only
-test run. Passing current tests makes **no claim** about old persistence.
-Do not migrate, copy or delete external data/accounts, provision study tables,
-change policies or create Supabase Storage buckets in this phase. The user
-chose Supabase for eventual cross-device persistence, but the full scope
-requires approval **after the interface corrections**. Do not repurpose
-Replit PostgreSQL.
+Routine windows/commitments and library resources/previews are still temporary
+account-isolated browser memory and explicitly labeled. Planning validates those
+temporary inputs but persists resulting blocks. Uploads/buckets remain excluded.
+Retired domain routes remain unavailable for authenticated calls. Old storage
+and OAuth routes are not reactivated. No MySQL/Forge handler runs in the app.
+
+`pnpm supabase:migrate` is an EXPLICIT administrative command using the scoped
+`SUPABASE_ACCESS_TOKEN`. It applies and records CLI-created migrations through
+the Management API and aligns local filenames with official migration versions.
+It is NEVER called by application startup, publishing, or post-merge setup.
+`pnpm test:db` runs a real, rolled-back transaction under synthetic authenticated
+identities to verify RLS, references, versions and server-clock lifecycle rules.
+It creates no native Auth account and changes no personal study record.
+Old MySQL integration suites remain excluded; `db:push` is a legacy MySQL command
+and must NOT be used for this external Supabase implementation.
 
 ## Verification limits
 

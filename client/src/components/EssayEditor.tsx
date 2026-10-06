@@ -1,6 +1,6 @@
 import EssayFeedbackPanel from "@/components/EssayFeedbackPanel";
 import EssayToolbar from "@/components/EssayToolbar";
-import { useStudySnapshot } from "@/lib/study";
+import { study as trpc, useStudySnapshot } from "@/lib/study";
 import { safeEssayHtml } from "@/lib/study-types";
 import { CircleAlert, Loader2, Save } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ export type EssayPartView = { id: number; name: string; color: string; coverage?
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function selectionInside(root: HTMLElement, selection: Selection | null) { if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false; return root.contains(selection.getRangeAt(0).commonAncestorContainer); }
 
-export default function EssayEditor({ title, theme, html, parts, status, feedback, feedbackPending, onTitleChange, onThemeChange, onContentChange, onRequestPartPicker, onFeedbackSubmit, onSave }: {
+export default function EssayEditor({ title, theme, html, parts, status, feedback, feedbackPending, onTitleChange, onThemeChange, onContentChange, onRequestPartPicker, onFeedbackSubmit, onSave, onRestoreVersion }: {
   title: string;
   theme: string;
   html: string;
@@ -24,6 +24,7 @@ export default function EssayEditor({ title, theme, html, parts, status, feedbac
   onRequestPartPicker: (apply: (part: EssayPartView) => void) => void;
   onFeedbackSubmit: (notes: string, totalScore?: number, selectedExcerpt?: string) => void;
   onSave: () => void;
+  onRestoreVersion?: (versionId: number) => void;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -31,8 +32,9 @@ export default function EssayEditor({ title, theme, html, parts, status, feedbac
   const [toolbar, setToolbar] = useState({ visible: false, top: 0, left: 0 });
   const [selectedExcerpt, setSelectedExcerpt] = useState("");
   const snapshot = useStudySnapshot();
+  const restoreVersion = trpc.essays.restoreVersion.useMutation();
   const essayId = Number(window.location.pathname.match(/^\/redacoes\/(\d+)$/)?.[1]);
-  const versions = snapshot.versions.filter(version => version.essayId === essayId).sort((a, b) => b.versionNumber - a.versionNumber);
+  const versions = (snapshot?.versions ?? []).filter(version => version.essayId === essayId).sort((a, b) => b.versionNumber - a.versionNumber);
 
   useEffect(() => { if (editorRef.current && editorRef.current.innerHTML !== html) editorRef.current.innerHTML = html || ""; }, [html]);
 
@@ -93,15 +95,18 @@ export default function EssayEditor({ title, theme, html, parts, status, feedbac
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); onSave(); } };
 
   return <section className="essay-editor-card soft-card" ref={shellRef}>
-    <div className="essay-editor-header"><div><p className="eyebrow">Escrita em foco</p><p className="caption mt-1">Selecione qualquer trecho para formatar, categorizar ou comentar.</p></div><div className="essay-save-status" aria-live="polite">{status === "saving" && <><Loader2 size={14} className="animate-spin" /> Atualizando sessão</>}{status === "saved" && <><Save size={14} /> Na memória desta sessão</>}{status === "error" && <><CircleAlert size={14} /> Não foi possível atualizar</>}{status === "idle" && <><Save size={14} /> Alterações temporárias</>}</div></div>
+    <div className="essay-editor-header"><div><p className="eyebrow">Escrita em foco</p><p className="caption mt-1">Selecione qualquer trecho para formatar, categorizar ou comentar.</p></div><div className="essay-save-status" aria-live="polite">{status === "saving" && <><Loader2 size={14} className="animate-spin" /> Salvando no Supabase</>}{status === "saved" && <><Save size={14} /> Salvo no Supabase</>}{status === "error" && <><CircleAlert size={14} /> Rascunho não confirmado</>}{status === "idle" && <><Save size={14} /> Edite para salvar</>}</div></div>
     <div className="essay-meta-fields"><input className="essay-title-input" value={title} onChange={event => onTitleChange(event.target.value)} placeholder="Título da redação" aria-label="Título da redação" /><input className="essay-theme-input" value={theme} onChange={event => onThemeChange(event.target.value)} placeholder="Tema ou proposta · ex.: Desafios da saúde mental" aria-label="Tema da redação" /></div>
     <div className="essay-editor-stage">
       <EssayToolbar visible={toolbar.visible} top={toolbar.top} left={toolbar.left} onCommand={command => runCommand(command)} onColor={color => runCommand("foreColor", color)} onPart={() => { setToolbar(current => ({ ...current, visible: false })); onRequestPartPicker(applyPart); }} />
        <div ref={editorRef} className="essay-rich-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Texto da redação" data-placeholder="Comece sua redação aqui..." onInput={handleInput} onPaste={handlePaste} onDrop={event => { event.preventDefault(); const html = event.dataTransfer.getData("text/html"); const safe = html ? safeEssayHtml(html) : escapeText(event.dataTransfer.getData("text/plain")); document.execCommand("insertHTML", false, safe); handleInput(); }} onMouseUp={() => captureSelection()} onKeyUp={() => captureSelection()} onKeyDown={handleKeyDown} onBlur={() => window.setTimeout(() => captureSelection(true), 120)} />
     </div>
     <EssayFeedbackPanel feedback={feedback} pending={feedbackPending} selectedExcerpt={selectedExcerpt} onSubmit={onFeedbackSubmit} />
-    <div className="essay-editor-footer"><span className="caption">{wordCount(editorRef.current?.innerText ?? html)} palavras · Ctrl/Cmd + S cria uma versão temporária</span><button className="soft-button-primary" onClick={onSave} disabled={status === "saving"}><Save size={16} /> Criar versão temporária</button></div>
-    <section className="soft-card p-5 mt-5" aria-labelledby="essay-versions-title"><div className="section-row"><div><p className="eyebrow">Versões da sessão</p><h2 id="essay-versions-title" className="card-title mt-1">Histórico temporário</h2></div><span className="caption">{versions.length} versões</span></div>{versions.length ? <div className="history-list mt-4">{versions.map(version => <div className="history-row" key={version.id}><span className="history-dot" /><div className="min-w-0 flex-1"><p className="font-semibold">Versão {version.versionNumber}</p><p className="caption mt-1">{new Date(version.createdAt).toLocaleString("pt-BR")}</p></div><button className="text-link shrink-0" disabled={!version.text} onClick={() => version.text && onContentChange(safeEssayHtml(version.text))}>Restaurar texto</button></div>)}</div> : <div className="compact-empty mt-4"><Save size={17} /><p className="caption">Crie uma versão temporária para registrar um ponto de retorno neste rascunho.</p></div>}<p className="caption mt-3">As versões também desaparecem ao encerrar a sessão.</p></section>
+    <div className="essay-editor-footer"><span className="caption">{wordCount(editorRef.current?.innerText ?? html)} palavras · Ctrl/Cmd + S confirma uma nova versão no Supabase</span><button className="soft-button-primary" onClick={onSave} disabled={status === "saving"}><Save size={16} /> Salvar versão</button></div>
+    <section className="soft-card p-5 mt-5" aria-labelledby="essay-versions-title"><div className="section-row"><div><p className="eyebrow">Versões</p><h2 id="essay-versions-title" className="card-title mt-1">Histórico confirmado</h2></div><span className="caption">{versions.length} versões</span></div>{versions.length ? <div className="history-list mt-4">{versions.map(version => <div className="history-row" key={version.id}><span className="history-dot" /><div className="min-w-0 flex-1"><p className="font-semibold">Versão {version.versionNumber}</p><p className="caption mt-1">{new Date(version.createdAt).toLocaleString("pt-BR")}</p></div><button className="text-link shrink-0" disabled={!version.text || restoreVersion.isPending} onClick={() => {
+      if (onRestoreVersion) { onRestoreVersion(version.id); return; }
+      void restoreVersion.mutateAsync({ id: essayId, versionId: version.id }).then(() => window.dispatchEvent(new CustomEvent("centraljr:essay-restored", { detail: { essayId } })));
+    }}>Restaurar versão</button></div>)}</div> : <div className="compact-empty mt-4"><Save size={17} /><p className="caption">Versões confirmadas aparecerão aqui depois do primeiro salvamento.</p></div>}<p className="caption mt-3">Restaurar uma versão recupera também metadados e partes armazenadas.</p>{restoreVersion.error && <p className="inline-error mt-3" role="alert">A restauração não foi confirmada. O conteúdo atual foi mantido.</p>}</section>
   </section>;
 }
 

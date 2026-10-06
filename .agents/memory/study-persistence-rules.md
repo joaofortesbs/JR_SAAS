@@ -32,3 +32,16 @@ backend key bypassing their access rules.
 **How to apply:** administrative access is for schema preparation and
 verification. Keep private queries, pending reads and subscriptions isolated
 when accounts change.
+
+Bind both cached study queries and queued commands to the intended account,
+even when the provider itself is remounted on account changes.
+
+**Why:** effect cleanup can run after a new account's first render, while
+delayed writes can obtain that new account's SDK token. A keyed provider alone
+does not prevent a stale private render or an old draft being created under
+the wrong account.
+
+**How to apply:** include the intended UUID in cache keys and commands, verify
+it against the authenticated identity before querying or writing, and discard
+that account's pending UI state on logout. Dirty essay revisions stay tied to
+the draft's base revision, not a newer revision received from another device.

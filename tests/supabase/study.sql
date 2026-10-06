@@ -1,0 +1,91 @@
+-- Real database behavior under the authenticated role, with synthetic UUIDs.
+-- Only the auth FK is deferred. No auth.users rows or credentials are created.
+-- All test records are rolled back; Realtime never publishes uncommitted data.
+begin;
+set constraints all deferred;
+set local role authenticated;
+do $$ <<study>>
+declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); exam_id integer; essay_id integer; part_id integer; block_id integer;
+ session_id integer; version_id integer; rev integer; r jsonb; pause_command uuid:=gen_random_uuid(); create_command uuid:=gen_random_uuid();
+ paused_ms bigint; denied boolean; original_parts integer; snap jsonb;
+begin
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',false)::text,true);
+ r:=public.jr_study_mutate('exams.create','{"name":"Teste isolado","institution":"Verificação","date":"2026-11-15","priority":"alta"}',create_command);
+ exam_id:=(r->>'id')::integer;
+ r:=public.jr_study_mutate('exams.create','{"name":"Teste isolado","institution":"Verificação","date":"2026-11-15","priority":"alta"}',create_command);
+ if (r->>'id')::integer<>exam_id or (select count(*) from public.jr_exams where user_id=a)<>1 then raise exception 'TEST: duplicate create'; end if;
+ denied:=false;
+ begin
+  insert into public.jr_exams(user_id,name,institution,date,priority) values(b,'Invasão sintética','Teste','2026-11-15','alta');
+ exception when insufficient_privilege then denied:=true; end;
+ if not denied then raise exception 'TEST: owner insert policy'; end if;
+ r:=public.jr_study_mutate('essays.create',jsonb_build_object('title','Redação original','theme','Tema original','bank','ENEM','examId',exam_id),gen_random_uuid());
+ essay_id:=(r->>'id')::integer;
+ r:=public.jr_study_mutate('essays.createPart',jsonb_build_object('essayId',essay_id,'name','Introdução original','color','blue'),gen_random_uuid());
+ part_id:=(r->>'id')::integer;
+ select revision into rev from public.jr_essays where id=essay_id;
+ r:=public.jr_study_mutate('essays.save',jsonb_build_object('id',essay_id,'title','Redação original','theme','Tema original','currentText','<p><span data-part-id="'||part_id||'" style="color:blue">Texto original</span></p>'),gen_random_uuid(),rev);
+ select v.id into version_id from public.jr_versions v where v.essay_id=study.essay_id limit 1;
+ select revision into rev from public.jr_essays where id=essay_id;
+ denied:=false;
+ begin
+  perform public.jr_study_mutate('essays.autosave',jsonb_build_object('id',essay_id,'title','Resposta atrasada','currentText','atrasada'),gen_random_uuid(),rev-1);
+ exception when others then if sqlerrm like '%REVISION_CONFLICT%' then denied:=true; else raise; end if; end;
+ if not denied then raise exception 'TEST: stale essay overwrite'; end if;
+ perform public.jr_study_mutate('essays.updatePart',jsonb_build_object('id',part_id,'name','Parte alterada','color','pink'),gen_random_uuid());
+ perform public.jr_study_mutate('essays.autosave',jsonb_build_object('id',essay_id,'title','Título alterado','theme','Tema alterado','currentText','<p>Novo</p>'),gen_random_uuid(),rev);
+ select revision into rev from public.jr_essays where id=essay_id;
+ perform public.jr_study_mutate('essays.restoreVersion',jsonb_build_object('id',essay_id,'versionId',version_id),gen_random_uuid(),rev);
+ if not exists(select 1 from public.jr_essays where id=essay_id and title='Redação original' and current_text like '%Texto original%') then raise exception 'TEST: restored body'; end if;
+ if not exists(select 1 from public.jr_parts where id=part_id and name='Introdução original' and color='blue' and deleted_at is null) then raise exception 'TEST: restored customization'; end if;
+ r:=public.jr_study_mutate('flows.createAdHoc',jsonb_build_object('examId',exam_id),gen_random_uuid()); block_id:=(r->>'id')::integer;
+ r:=public.jr_study_mutate('flows.start',jsonb_build_object('blockId',block_id),gen_random_uuid()); session_id:=(r->>'id')::integer;
+ denied:=false;
+ begin perform public.jr_study_mutate('flows.start',jsonb_build_object('blockId',block_id),gen_random_uuid());
+ exception when others then if sqlerrm like '%ACTIVE_FLOW%' then denied:=true; else raise; end if; end;
+ if not denied then raise exception 'TEST: duplicate active Flow'; end if;
+ denied:=false;
+ begin update public.jr_sessions set accumulated_ms=999999 where id=session_id;
+ exception when insufficient_privilege then denied:=true; end;
+ if not denied then raise exception 'TEST: forged duration'; end if;
+ perform pg_sleep(0.025);
+ r:=public.jr_study_mutate('flows.pause',jsonb_build_object('id',session_id),pause_command,1);
+ select accumulated_ms into paused_ms from public.jr_sessions where id=session_id;
+ if paused_ms<20 or not exists(select 1 from public.jr_sessions where id=session_id and status='paused' and last_resumed_at is null) then raise exception 'TEST: pause duration'; end if;
+ perform public.jr_study_mutate('flows.pause',jsonb_build_object('id',session_id),pause_command,1);
+ if (select count(*) from public.jr_periods p where p.session_id=study.session_id)<>1 then raise exception 'TEST: duplicate period'; end if;
+ perform pg_sleep(0.05);
+ if (select accumulated_ms from public.jr_sessions where id=session_id)<>paused_ms then raise exception 'TEST: paused time counted'; end if;
+ denied:=false;
+ begin perform public.jr_study_mutate('flows.resume',jsonb_build_object('id',session_id),gen_random_uuid(),1);
+ exception when others then if sqlerrm like '%REVISION_CONFLICT%' then denied:=true; else raise; end if; end;
+ if not denied then raise exception 'TEST: stale Flow state'; end if;
+ perform public.jr_study_mutate('flows.resume',jsonb_build_object('id',session_id),gen_random_uuid(),2);
+ perform pg_sleep(0.025);
+ perform public.jr_study_mutate('flows.complete',jsonb_build_object('id',session_id),gen_random_uuid(),3);
+ if not exists(select 1 from public.jr_sessions s where s.id=session_id and s.status='completed'
+  and s.accumulated_ms=(select sum(p.elapsed_ms) from public.jr_periods p where p.session_id=s.id) and s.actual_minutes<1) then raise exception 'TEST: exact period sum'; end if;
+ snap:=public.jr_study_snapshot();
+ if jsonb_array_length(snap->'sessions')<>1 or jsonb_array_length(snap->'periods')<>2 then raise exception 'TEST: recovery snapshot'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','is_anonymous',false)::text,true);
+ snap:=public.jr_study_snapshot();
+ if jsonb_array_length(snap->'exams')<>0 or jsonb_array_length(snap->'essays')<>0 or jsonb_array_length(snap->'sessions')<>0 then raise exception 'TEST: cross-account read'; end if;
+ if exists(select 1 from public.jr_versions v where v.essay_id=study.essay_id) then raise exception 'TEST: cross-account versions'; end if;
+ denied:=false;
+ begin perform public.jr_study_mutate('flows.resume',jsonb_build_object('id',session_id),gen_random_uuid(),4);
+ exception when others then if sqlerrm like '%NOT_FOUND%' then denied:=true; else raise; end if; end;
+ if not denied then raise exception 'TEST: cross-account command'; end if;
+ denied:=false;
+ begin perform public.jr_study_mutate('exams.createTopic',jsonb_build_object('examId',exam_id,'name','Outro dono','subject','Matéria','weight',3),gen_random_uuid());
+ exception when foreign_key_violation then denied:=true; end;
+ if not denied then raise exception 'TEST: cross-owner reference'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',true)::text,true);
+ snap:=public.jr_study_snapshot();
+ if jsonb_array_length(snap->'exams')<>0 then raise exception 'TEST: anonymous identity read'; end if;
+ denied:=false;
+ begin perform public.jr_study_mutate('exams.create','{"name":"Anônimo","institution":"Teste","date":"2026-11-15","priority":"alta"}',gen_random_uuid());
+ exception when others then if sqlerrm like '%UNAUTHORIZED%' then denied:=true; else raise; end if; end;
+ if not denied then raise exception 'TEST: anonymous command'; end if;
+end $$;
+select jsonb_build_object('passed',true,'checks',array['idempotent_create','ownership_insert','essay_revision','complete_version_restore','one_active_flow','direct_clock_write_denied','pause_resume','period_sum','recovery_snapshot','cross_account_read','cross_account_command','cross_owner_fk','anonymous_denied']) as verification;
+rollback;

@@ -60,7 +60,7 @@ describe("Auth-only API boundaries", () => {
         signal: undefined, batchIndex: 0,
       });
       await expect(invoke(null)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-      if (path !== "auth.me") await expect(invoke(account)).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE", message: "STUDY_PERSISTENCE_UNAVAILABLE" });
+      if (path !== "auth.me" && !path.startsWith("study.")) await expect(invoke(account)).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE", message: "STUDY_PERSISTENCE_UNAVAILABLE" });
     }
     expect(await appRouter.createCaller(ctx(account)).auth.me()).toEqual(account);
   });

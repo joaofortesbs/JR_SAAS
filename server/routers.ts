@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, unavailableProcedure, unavailable, router } from "./_core/trpc";
+import { studyInput, studyMutation, studySnapshot } from "./study";
 
 // Preserve the old endpoint names without importing or executing the MySQL handlers.
 // Authentication is checked before resource availability, including malformed inputs.
@@ -11,6 +12,10 @@ export const appRouter = router({
     notifyOwner: mutation,
   }),
   auth: router({ me: protectedProcedure.query(({ ctx }) => ctx.user) }),
+  study: router({
+    snapshot: protectedProcedure.input(z.object({ownerId:z.string().uuid()})).query(({ctx,input})=>studySnapshot(ctx,input.ownerId)),
+    mutate: protectedProcedure.input(studyInput).mutation(({ctx,input})=>studyMutation(ctx,input)),
+  }),
   dashboard: query,
   exams: router({ list: query, detail: query, topics: query, create: mutation, update: mutation, close: mutation, createTopic: mutation, updateTopic: mutation }),
   routine: router({ list: query, addWindow: mutation, addCommitment: mutation }),

@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { study as trpc } from "@/lib/study";
-import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, Clock3, FileText, Timer, Workflow } from "lucide-react";
+import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, Clock3, FileText, RefreshCw, Timer, Workflow } from "lucide-react";
 import { useLocation } from "wouter";
 
 const destinations = [
@@ -41,7 +41,7 @@ export default function Panel() {
         </div>
           <span className="panel-state-chip">
           <Timer size={15} />
-          Sessão temporária
+          Supabase · conta privada
         </span>
       </div>
 
@@ -52,7 +52,7 @@ export default function Panel() {
             Um plano de estudos que começa pelo que importa.
           </h2>
           <p className="body-copy mt-3 max-w-xl">
-            Provas, textos e sessões ficam disponíveis durante esta sessão. Nada é enviado ou mantido após sair.
+            Provas, redações, planejamento e Flows acompanham sua conta. Rotina e biblioteca continuam temporárias.
           </p>
           <div className="flex flex-wrap gap-3 mt-6">
             <Button className="soft-button-primary" onClick={() => setLocation("/provas")}>
@@ -75,13 +75,13 @@ export default function Panel() {
         </div>
       </section>
 
-      <section className="panel-storage-note" aria-label="Atividade desta sessão">
+      <section className="panel-storage-note" aria-label="Atividade de estudo">
         <div className="panel-storage-icon"><Timer size={17} /></div>
         <div className="min-w-0">
-          <p className="panel-storage-title">{error ? "Não foi possível carregar a atividade" : isLoading ? "Atualizando atividade…" : "Atividade desta sessão"}</p>
-          <p className="caption">{error ? "Tente novamente em instantes." : `${exams.length} provas · ${essays.length} redações · ${completed.length} sessões concluídas · ${plannedMinutes} min nas janelas de estudo.`}</p>
+          <p className="panel-storage-title">{error ? "Não foi possível carregar seus estudos" : isLoading ? "Consultando seus estudos…" : "Estudos da sua conta"}</p>
+          <p className="caption">{error ? "Nenhum resultado temporário foi usado. Tente novamente para consultar o estado oficial." : isLoading ? "A atividade aparecerá quando a leitura autorizada for concluída." : `${exams.length} provas · ${essays.length} redações · ${completed.length} blocos concluídos · ${plannedMinutes} min nas janelas temporárias.`}</p>
         </div>
-        {error ? <Button variant="outline" className="soft-button-secondary shrink-0" onClick={() => utils.dashboard.invalidate()}>Tentar novamente</Button> : <span className="panel-storage-badge">Só memória</span>}
+        {error ? <Button variant="outline" className="soft-button-secondary shrink-0" onClick={() => utils.study.snapshot.invalidate()}><RefreshCw size={15} /> Tentar novamente</Button> : <span className="panel-storage-badge">{isLoading ? "Aguardando" : "Supabase"}</span>}
       </section>
 
       <section className="panel-section" aria-labelledby="panel-paths-title">
@@ -124,8 +124,8 @@ export default function Panel() {
           <div className="panel-promise-icon"><Check size={17} /></div>
           <div>
             <p className="eyebrow">Um começo honesto</p>
-            <h2 className="card-title mt-1">Seus dados ficam no navegador.</h2>
-            <p className="body-copy mt-2">Esta sessão é temporária e isolada da conta. Recarregar, sair ou trocar de conta descarta tudo.</p>
+            <h2 className="card-title mt-1">Cada módulo tem seu lugar.</h2>
+            <p className="body-copy mt-2">Provas, redações, plano e Flows consultam o Supabase autenticado. Rotina e biblioteca permanecem temporárias e são enviadas ao gerar um plano, sem serem apresentadas como salvas.</p>
           </div>
         </div>
         <button

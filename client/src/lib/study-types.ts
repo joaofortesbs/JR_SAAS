@@ -1,7 +1,7 @@
 import type { Exam, Topic, StudyWindow, FixedCommitment, Resource, StudyBlock, StudySession, Essay, EssayPart, EssayVersion, EssayFeedback } from "../../../drizzle/schema";
 
 // Domain record IDs are temporary numbers; the account identity remains a UUID.
-type Owned<T> = Omit<T, "userId"> & { userId: string };
+type Owned<T> = Omit<T, "userId"> & { userId: string; revision?: number };
 export type StudyState = {
   exams: Owned<Exam>[];
   topics: Owned<Topic>[];
@@ -14,11 +14,12 @@ export type StudyState = {
   parts: Owned<EssayPart>[];
   versions: Owned<EssayVersion>[];
   feedback: Owned<EssayFeedback>[];
+  periods: { id: number; userId: string; sessionId: number; startedAt: Date; endedAt: Date | null; elapsedMs: number | null; createdAt: Date }[];
 };
 
 export const emptyStudyState = (): StudyState => ({
   exams: [], topics: [], windows: [], commitments: [], resources: [],
-  blocks: [], sessions: [], essays: [], parts: [], versions: [], feedback: [],
+  blocks: [], sessions: [], essays: [], parts: [], versions: [], feedback: [], periods: [],
 });
 
 // Rebuild supported tags instead of preserving user-provided attributes.

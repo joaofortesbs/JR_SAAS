@@ -11,6 +11,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:ui": "playwright test",
+    "test:db": "node scripts/check-study-database.mjs",
+    "supabase:migrate": "node scripts/supabase-migrate.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

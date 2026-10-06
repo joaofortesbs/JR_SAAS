@@ -4,6 +4,7 @@ import ConfirmActionDialog from "@/components/ConfirmActionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { study as trpc } from "@/lib/study";
+import { registerEssayRevisionLock, registerStudyDraftFlush, useStudyOwnerId } from "@/lib/study";
 import { safeEssayHtml } from "@/lib/study-types";
 import { BookOpen, ChevronRight, CircleAlert, FileDown, FileText, Filter, Loader2, Plus, Printer, Search, Sparkles, TimerReset, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +40,7 @@ function EssayLibrary() {
   return <Frame action={<Button className="soft-button-primary" onClick={() => setLocation("/redacoes/nova")}><Plus size={17} /> Nova redação</Button>}>
     <div className="essay-library-toolbar"><div className="essay-search"><Search size={17} /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar redações ou temas..." aria-label="Buscar redações" /></div><div className="essay-filter"><Filter size={15} /><select value={theme} onChange={event => setTheme(event.target.value)} aria-label="Filtrar por tema"><option value="all">Todos os temas</option>{themes.map(item => <option key={item} value={item}>{item}</option>)}</select></div></div>
     {isLoading ? <div className="soft-card p-12 grid place-items-center" role="status"><Loader2 className="animate-spin" /></div> : error ? <div className="soft-card p-8" role="alert"><p className="card-title">Não conseguimos carregar suas redações.</p><p className="body-copy mt-2">Tente novamente.</p><Button className="soft-button-primary mt-4" onClick={() => utils.essays.list.invalidate()}>Tentar novamente</Button></div> : essays.length ? <div className="essay-library-grid mt-5">{essays.map(essay => <EssayCard key={essay.id} essay={essay} onOpen={() => setLocation(`/redacoes/${essay.id}`)} onDelete={() => setDeleteTarget(essay)} />)}<button className="essay-new-card" onClick={() => setLocation("/redacoes/nova")}><Plus size={20} /><strong>Começar outra redação</strong><span>Um novo texto, um novo avanço.</span></button></div> : <div className="soft-card essay-empty-state"><div className="empty-icon"><FileText size={22} /></div><h2 className="card-title mt-4">Seu espaço de escrita está aberto</h2><p className="body-copy mt-2 max-w-md mx-auto">Crie sua primeira redação e use as partes para enxergar a estrutura do argumento.</p><Button className="soft-button-primary mt-5" onClick={() => setLocation("/redacoes/nova")}><Plus size={16} /> Escrever primeira redação</Button></div>}
-    <ConfirmActionDialog open={Boolean(deleteTarget)} onOpenChange={open => !open && setDeleteTarget(null)} title="Excluir esta redação?" description="O texto e suas anotações serão removidos desta sessão temporária." confirmLabel="Excluir redação" pending={remove.isPending} onConfirm={() => deleteTarget && remove.mutate({ id: deleteTarget.id })} />
+    <ConfirmActionDialog open={Boolean(deleteTarget)} onOpenChange={open => !open && setDeleteTarget(null)} title="Excluir esta redação?" description="O texto, as versões e as anotações serão removidos da sua conta no Supabase." confirmLabel="Excluir redação" pending={remove.isPending} onConfirm={() => deleteTarget && remove.mutate({ id: deleteTarget.id })} />
   </Frame>;
 }
 
@@ -53,12 +54,13 @@ function NewEssayPage() {
   const [title, setTitle] = useState("");
   const [theme, setTheme] = useState("");
   const create = trpc.essays.create.useMutation({ onSuccess: result => setLocation(`/redacoes/${result.id}`) });
-  return <Frame><div className="new-essay-layout"><section className="soft-card new-essay-hero"><div className="brand-mark"><Sparkles size={19} /></div><p className="eyebrow mt-6">Novo espaço de escrita</p><h2 className="hero-title mt-3">Uma ideia fica mais forte quando ganha estrutura.</h2><p className="body-copy mt-4 max-w-lg">Comece com o título e o tema. Depois, a toolbar ajuda você a organizar o pensamento sem interromper o fluxo.</p><div className="new-essay-form mt-8"><label><span>Título</span><Input value={title} onChange={event => setTitle(event.target.value)} placeholder="Ex.: Redação ENEM — Saúde mental" /></label><label><span>Tema ou proposta</span><Input value={theme} onChange={event => setTheme(event.target.value)} placeholder="Ex.: Desafios da saúde mental no Brasil" /></label><div className="flex gap-3 mt-3"><Button variant="outline" className="soft-button-secondary" onClick={() => setLocation("/redacoes")}>Cancelar</Button><Button className="soft-button-primary" disabled={create.isPending || title.trim().length < 2} onClick={() => create.mutate({ title: title.trim(), theme: theme.trim() || undefined, bank: "ENEM", source: "editor" })}>{create.isPending ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />} Criar redação</Button></div>{create.error && <p className="inline-error mt-4" role="alert"><CircleAlert size={15} /> {create.error.message || "Não foi possível criar a redação nesta sessão."}</p>}</div></section><aside className="new-essay-aside"><div className="soft-card p-6"><p className="eyebrow">Como funciona</p><div className="new-essay-step mt-5"><span>1</span><div><strong>Escreva sem interromper o raciocínio</strong><p className="caption mt-1">As alterações ficam na memória desta sessão.</p></div></div><div className="new-essay-step mt-4"><span>2</span><div><strong>Selecione e categorize</strong><p className="caption mt-1">Introdução, desenvolvimento, conclusão ou suas próprias partes.</p></div></div><div className="new-essay-step mt-4"><span>3</span><div><strong>Leve para um Flow</strong><p className="caption mt-1">Cronometre a revisão da redação quando quiser.</p></div></div><p className="caption mt-5">Nada é salvo permanentemente. Ao sair, o rascunho é descartado.</p></div></aside></div></Frame>;
+  return <Frame><div className="new-essay-layout"><section className="soft-card new-essay-hero"><div className="brand-mark"><Sparkles size={19} /></div><p className="eyebrow mt-6">Novo espaço de escrita</p><h2 className="hero-title mt-3">Uma ideia fica mais forte quando ganha estrutura.</h2><p className="body-copy mt-4 max-w-lg">Comece com o título e o tema. Depois, a toolbar ajuda você a organizar o pensamento sem interromper o fluxo.</p><div className="new-essay-form mt-8"><label><span>Título</span><Input value={title} onChange={event => setTitle(event.target.value)} placeholder="Ex.: Redação ENEM — Saúde mental" /></label><label><span>Tema ou proposta</span><Input value={theme} onChange={event => setTheme(event.target.value)} placeholder="Ex.: Desafios da saúde mental no Brasil" /></label><div className="flex gap-3 mt-3"><Button variant="outline" className="soft-button-secondary" onClick={() => setLocation("/redacoes")}>Cancelar</Button><Button className="soft-button-primary" disabled={create.isPending || title.trim().length < 2} onClick={() => create.mutate({ title: title.trim(), theme: theme.trim() || undefined, bank: "ENEM", source: "editor" })}>{create.isPending ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />} Criar redação</Button></div>{create.error && <p className="inline-error mt-4" role="alert"><CircleAlert size={15} /> {create.error.message || "Não foi possível criar a redação."}</p>}</div></section><aside className="new-essay-aside"><div className="soft-card p-6"><p className="eyebrow">Como funciona</p><div className="new-essay-step mt-5"><span>1</span><div><strong>Escreva sem interromper o raciocínio</strong><p className="caption mt-1">As alterações são enviadas ao Supabase após uma breve pausa.</p></div></div><div className="new-essay-step mt-4"><span>2</span><div><strong>Selecione e categorize</strong><p className="caption mt-1">Introdução, desenvolvimento, conclusão ou suas próprias partes.</p></div></div><div className="new-essay-step mt-4"><span>3</span><div><strong>Leve para um Flow</strong><p className="caption mt-1">Cronometre a revisão com uma sessão vinculada a esta redação.</p></div></div></div></aside></div></Frame>;
 }
 
 function EssayDetailPage({ id }: { id: number }) {
   const [, setLocation] = useLocation();
-  const { data, isLoading, error } = trpc.essays.detail.useQuery({ id });
+  const ownerId = useStudyOwnerId();
+  const { data, isLoading, error, refetch } = trpc.essays.detail.useQuery({ id });
   const utils = trpc.useUtils();
   const [title, setTitle] = useState("");
   const [theme, setTheme] = useState("");
@@ -68,11 +70,26 @@ function EssayDetailPage({ id }: { id: number }) {
   const pendingApply = useRef<((part: EssayPartView) => void) | null>(null);
   const initializedForId = useRef<number | null>(null);
   const [partError, setPartError] = useState("");
-  const autosave = trpc.essays.autosave.useMutation({ onSuccess: () => setSaveStatus("saved"), onError: () => setSaveStatus("error") });
+  const autosave = trpc.essays.autosave.useMutation({
+    onSuccess: (result, input) => {
+      if (result.revision !== undefined) baseRevision.current = result.revision;
+      setPartError("");
+      const saved = { title: input.title, theme: input.theme ?? "", currentText: input.currentText };
+      lastSaved.current = saved;
+      if (draftRef.current.title.trim() === saved.title && draftRef.current.theme.trim() === saved.theme && draftRef.current.currentText === saved.currentText) setSaveStatus("saved");
+    },
+    onError: (error, input) => {
+      setPartError(error.message);
+      if (draftRef.current.title.trim() === input.title && draftRef.current.theme.trim() === (input.theme ?? "") && draftRef.current.currentText === input.currentText) setSaveStatus("error");
+    },
+  });
   const autosaveRef = useRef(autosave.mutate);
   autosaveRef.current = autosave.mutate;
   const lastSaved = useRef({ title: "", theme: "", currentText: "" });
-  const save = trpc.essays.save.useMutation({ onSuccess: async () => { setSaveStatus("saved"); await utils.essays.detail.invalidate({ id }); } });
+  const baseRevision = useRef<number | undefined>(undefined);
+  const draftRef = useRef({ title, theme, currentText: html });
+  draftRef.current = { title, theme, currentText: html };
+  const save = trpc.essays.save.useMutation({ onSuccess: async (result, input) => { if (result.revision !== undefined) baseRevision.current = result.revision; setPartError(""); const confirmed = { title: input.title, theme: input.theme ?? "", currentText: input.currentText }; lastSaved.current = confirmed; if (draftRef.current.title.trim() === confirmed.title && draftRef.current.theme.trim() === confirmed.theme && draftRef.current.currentText === confirmed.currentText) setSaveStatus("saved"); await utils.essays.detail.invalidate({ id }); }, onError: error => { setSaveStatus("error"); setPartError(error.message); } });
   const createPart = trpc.essays.createPart.useMutation({ onSuccess: async () => { setPartError(""); await utils.essays.detail.invalidate({ id }); } , onError: error => setPartError(error.message) });
   const updatePart = trpc.essays.updatePart.useMutation({ onSuccess: async () => { setPartError(""); await utils.essays.detail.invalidate({ id }); }, onError: error => setPartError(error.message) });
   const deletePart = trpc.essays.deletePart.useMutation({ onSuccess: async () => { setPartError(""); await utils.essays.detail.invalidate({ id }); }, onError: error => setPartError(error.message) });
@@ -80,15 +97,58 @@ function EssayDetailPage({ id }: { id: number }) {
   const applyPart = trpc.essays.applyPart.useMutation({ onSuccess: async () => { await utils.essays.detail.invalidate({ id }); }, onError: error => setPartError(error.message) });
   const feedback = trpc.essays.feedback.useMutation({ onSuccess: async () => { await utils.essays.detail.invalidate({ id }); }, onError: error => setPartError(error.message) });
   const startFlow = trpc.flows.start.useMutation({ onSuccess: () => setLocation("/flows") });
-  const createFlow = trpc.flows.createAdHoc.useMutation({ onSuccess: result => startFlow.mutate({ blockId: result.id }) });
-  useEffect(() => { if (!data?.essay || initializedForId.current === id) return; initializedForId.current = id; setTitle(data.essay.title); setTheme(data.essay.theme ?? ""); setHtml(data.essay.currentText ?? ""); lastSaved.current = { title: data.essay.title, theme: data.essay.theme ?? "", currentText: data.essay.currentText ?? "" }; setSaveStatus("idle"); }, [data?.essay, id]);
+  const createFlow = trpc.flows.createAdHoc.useMutation({ onSuccess: result => { if (result.id) void flushDraft().then(confirmed => { if (confirmed) startFlow.mutate({ blockId: result.id! }); else setPartError("Salve o rascunho no Supabase antes de iniciar o Flow."); }); } });
+   useEffect(() => { if (!data?.essay || initializedForId.current === id) return; initializedForId.current = id; baseRevision.current = data.essay.revision; setTitle(data.essay.title); setTheme(data.essay.theme ?? ""); setHtml(data.essay.currentText ?? ""); lastSaved.current = { title: data.essay.title, theme: data.essay.theme ?? "", currentText: data.essay.currentText ?? "" }; setSaveStatus("idle"); }, [data?.essay, id]);
+  useEffect(() => registerEssayRevisionLock(ownerId, id, { get: () => baseRevision.current, set: revision => { baseRevision.current = revision; } }), [ownerId, id]);
   useEffect(() => {
     if (initializedForId.current !== id || !title.trim()) return;
     const next = { title: title.trim(), theme: theme.trim(), currentText: html };
     if (next.title === lastSaved.current.title && next.theme === lastSaved.current.theme && next.currentText === lastSaved.current.currentText) return;
-    const timer = window.setTimeout(() => { setSaveStatus("saving"); lastSaved.current = next; autosaveRef.current({ id, title: next.title, theme: next.theme || undefined, currentText: next.currentText }); }, 900);
+    const timer = window.setTimeout(() => { setSaveStatus("saving"); autosaveRef.current({ id, title: next.title, theme: next.theme || undefined, currentText: next.currentText, revision: baseRevision.current }); }, 900);
     return () => window.clearTimeout(timer);
   }, [id, title, theme, html]);
+  const flushDraft = async () => {
+    if (initializedForId.current !== id) return true;
+    const next = { title: draftRef.current.title.trim(), theme: draftRef.current.theme.trim(), currentText: draftRef.current.currentText };
+    if (!next.title || (next.title === lastSaved.current.title && next.theme === lastSaved.current.theme && next.currentText === lastSaved.current.currentText)) return true;
+    setSaveStatus("saving");
+    try {
+      await autosave.mutateAsync({ id, title: next.title, theme: next.theme || undefined, currentText: next.currentText, revision: baseRevision.current });
+      return true;
+    } catch {
+      setSaveStatus("error");
+      return false;
+    }
+  };
+  useEffect(() => registerStudyDraftFlush(flushDraft), [id]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      const current = draftRef.current;
+      if (current.title.trim() !== lastSaved.current.title || current.theme.trim() !== lastSaved.current.theme || current.currentText !== lastSaved.current.currentText) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+  useEffect(() => {
+    const onRestored = (event: Event) => {
+      if ((event as CustomEvent<{ essayId: number }>).detail?.essayId !== id) return;
+      void refetch().then(result => {
+        const restored = result.data?.essay;
+        if (!restored) return;
+        setTitle(restored.title);
+        setTheme(restored.theme ?? "");
+        setHtml(restored.currentText ?? "");
+        baseRevision.current = restored.revision;
+        lastSaved.current = { title: restored.title, theme: restored.theme ?? "", currentText: restored.currentText ?? "" };
+        setSaveStatus("saved");
+      });
+    };
+    window.addEventListener("centraljr:essay-restored", onRestored);
+    return () => window.removeEventListener("centraljr:essay-restored", onRestored);
+  }, [id, refetch]);
   useEffect(() => {
     if (!partPickerOpen) return;
     const panel = document.querySelector<HTMLElement>(".essay-part-picker");
