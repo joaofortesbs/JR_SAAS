@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { TrpcContext } from "./_core/context";
 import { publicAuthConfig } from "./_core/supabase";
 import { emptyStudyState, safeEssayHtml, type StudyState } from "../shared/study";
-import { generateStudyPlan } from "./planning";
 
 const id = z.number().int().positive();
 const title = z.string().trim().min(2, "Use pelo menos dois caracteres.").max(180);
@@ -17,9 +16,6 @@ const topic = z.object({ name: title, subject: title, weight: z.number().int().m
 const exam = z.object({ name: title, institution: title, date, phase: title.optional(), color: z.enum(["blue","pink","mint","orange","yellow"]).optional(), priority: z.enum(["principal","alta","media","baixa"]), notes: note });
 const partColor = z.enum(["blue","pink","mint","orange","yellow"]);
 const savedEssay = z.object({ id, title, theme: note, currentText: z.string().max(1000000), status: z.enum(["draft","submitted_for_review","feedback_received","revision_needed","revised"]).optional() });
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const window = z.object({ weekday: z.number().int().min(0).max(6), startTime: time, endTime: time, maxMinutes: z.number().int().min(15).max(600), preference: z.string().optional() }).refine(row => row.endTime > row.startTime && row.maxMinutes <= minutes(row.endTime) - minutes(row.startTime), "Confira os horários e a capacidade da rotina.");
-const commitment = z.object({ weekday: z.number().int().min(0).max(6), startTime: time, endTime: time });
 const score = z.number().int().min(0).max(200).optional();
 export const studySchemas = {
   "exams.create": exam,
@@ -40,8 +36,6 @@ export const studySchemas = {
   "essays.deletePart": z.object({ id }),
   "essays.reorderParts": z.object({ essayId: id, partIds: z.array(id).max(100).refine(values => new Set(values).size === values.length) }),
   "essays.feedback": z.object({ essayId: id, origin: title.max(40), totalScore: z.number().int().min(0).max(1000).optional(), competence1: score, competence2: score, competence3: score, competence4: score, competence5: score, notes: note }),
-  "planning.generate": z.object({ weekStart: date.optional(), windows: z.array(window).min(1).max(100), commitments: z.array(commitment).max(100).default([]) }),
-  "planning.updateStatus": z.object({ id, status: z.enum(["planned","accepted","partially_completed","postponed","cancelled"]) }),
   "flows.createAdHoc": z.object({ examId: id.optional(), essayId: id.optional() }).refine(row => Boolean(row.examId) !== Boolean(row.essayId), "Escolha uma prova ou uma redação."),
   "flows.start": z.object({ blockId: id }),
   "flows.pause": z.object({ id }),
@@ -56,13 +50,12 @@ export const studyInput = z.object({
   requestId: z.string().uuid(),
   expectedRevision: z.number().int().positive().optional(),
 });
-const resultSchema = z.object({ id: id.optional(), success: z.boolean().optional(), saved: z.boolean().optional(), versionNumber: z.number().int().nonnegative().optional(), revision: z.number().int().positive().optional(), actualMinutes: z.number().nonnegative().nullable().optional(), created: z.number().int().nonnegative().optional(), ids: z.array(id).optional() });
+const resultSchema = z.object({ id: id.optional(), success: z.boolean().optional(), saved: z.boolean().optional(), versionNumber: z.number().int().nonnegative().optional(), revision: z.number().int().positive().optional(), actualMinutes: z.number().nonnegative().nullable().optional() });
 const messages: Record<string, [ConstructorParameters<typeof TRPCError>[0]["code"], string]> = {
   REVISION_CONFLICT: ["CONFLICT","Este registro mudou em outro dispositivo. Seu rascunho foi preservado; confira a versão atual antes de tentar novamente."],
   ACTIVE_FLOW: ["CONFLICT","Finalize ou cancele seu Flow atual antes de realizar esta ação."],
   NOT_FOUND: ["NOT_FOUND","Este item não está disponível para esta conta."],
   INVALID_STATE: ["CONFLICT","O estado do Flow mudou. Atualize a tela e confira os controles."],
-  USE_FLOW_TIMER: ["BAD_REQUEST","Use o cronômetro do Flow para registrar a execução."],
   INVALID_INPUT: ["BAD_REQUEST","Confira os dados informados."],
   INVALID_REQUEST: ["CONFLICT","Este comando já foi usado para outra ação."],
   UNAUTHORIZED: ["UNAUTHORIZED","Entre novamente na sua conta."],
@@ -119,24 +112,12 @@ export async function studySnapshot(ctx: TrpcContext, ownerId = ctx.user?.id) {
   try { return decodeSnapshot(data,ctx.user!.id); }
   catch { throw new TRPCError({code:"SERVICE_UNAVAILABLE",message:"O Supabase retornou dados fora do contrato esperado."}); }
 }
-const minutes = (value: string) => Number(value.slice(0,2))*60+Number(value.slice(3));
 export async function studyMutation(ctx: TrpcContext,input:z.infer<typeof studyInput>) {
   if (!ctx.user || input.ownerId !== ctx.user.id) throw new TRPCError({code:"FORBIDDEN",message:"A conta ativa mudou. Esta operação não foi aplicada."});
   const parsed = studySchemas[input.operation].safeParse(input.payload);
   if (!parsed.success) throw new TRPCError({code:"BAD_REQUEST",message:parsed.error.issues[0]?.message ?? "Confira os dados."});
   const payload: Record<string,unknown> = {...parsed.data};
   if (typeof payload.currentText === "string") payload.currentText = safeEssayHtml(payload.currentText);
-  if (input.operation === "planning.generate") {
-    const planning = studySchemas["planning.generate"].parse(payload);
-    const allSlots = [...planning.windows,...planning.commitments];
-    if (allSlots.some((row,index) => allSlots.slice(index+1).some(other=>row.weekday===other.weekday && row.startTime<other.endTime && row.endTime>other.startTime))) {
-      throw new TRPCError({code:"BAD_REQUEST",message:"Há horários sobrepostos na rotina."});
-    }
-    const {state} = await studySnapshot(ctx);
-    const exams = state.exams.filter(row=>row.status==="active");
-    if (!exams.length) throw new TRPCError({code:"BAD_REQUEST",message:"Cadastre uma prova ativa antes de gerar o plano."});
-    payload._blocks = generateStudyPlan({weekStart:planning.weekStart,exams,topics:state.topics,windows:planning.windows});
-  }
   const {data,error}=await clientFor(ctx).rpc("jr_study_mutate",{
     operation:input.operation,payload,request_id:input.requestId,expected_revision:input.expectedRevision ?? null,
   });

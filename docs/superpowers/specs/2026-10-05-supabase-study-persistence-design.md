@@ -1,5 +1,11 @@
 # Central JR — persistência de estudos no Supabase externo
 
+> Escopo atualizado por aprovação do usuário: Plano semanal e Biblioteca foram
+> removidos da plataforma, incluindo geração de planos e relações de recursos.
+> Referências abaixo a essas funcionalidades descrevem o desenho histórico,
+> não autorizam sua reintrodução. Contextos e históricos dos Flows foram
+> preservados. O estado atual da aplicação está documentado em `replit.md`.
+
 ## 1. Objetivo e aprovação
 
 Substituir o armazenamento temporário de provas, redações e Flows por

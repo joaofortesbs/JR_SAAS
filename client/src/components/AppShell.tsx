@@ -3,7 +3,7 @@ import { startLogin } from "@/const";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BookMarked, CalendarDays, FileText, LayoutDashboard, LogOut, Menu, Moon, RefreshCw, Sparkles, Sun, Target, TimerReset, UserRound, Workflow, X } from "lucide-react";
+import { FileText, LayoutDashboard, LogOut, Menu, Moon, RefreshCw, Sparkles, Sun, Target, TimerReset, UserRound, Workflow, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -15,8 +15,6 @@ const primaryItems = [
   { path: "/provas", legacy: [], label: "Provas", description: "Prazos e objetivos", icon: Target },
   { path: "/redacoes", legacy: [], label: "Redações", description: "Escrita com direção", icon: FileText },
   { path: "/flows", legacy: [], label: "Flows", description: "Tempo em movimento", icon: Workflow },
-  { path: "/plano", legacy: [], label: "Plano", description: "Organizar a semana", icon: CalendarDays },
-  { path: "/biblioteca", legacy: [], label: "Biblioteca", description: "Materiais de estudo", icon: BookMarked },
 ];
 
 function ProfileCard({ name, initials }: { name: string; initials: string }) {
@@ -96,7 +94,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const initials = (user.name ?? "Estudante").split(" ").map(s => s[0]).slice(0, 2).join("").toUpperCase();
   const current = primaryItems.find(item => location.startsWith(item.path) || item.legacy.some(path => path === "/" ? location === "/" : location.startsWith(path)));
-  const currentLabel = current?.label ?? (location.startsWith("/conta") ? "Minha conta" : location.startsWith("/redacoes") ? "Redações" : location.startsWith("/biblioteca") ? "Biblioteca" : location.startsWith("/rotina") ? "Minha rotina" : "Central JR");
+  const currentLabel = current?.label ?? (location.startsWith("/conta") ? "Minha conta" : location.startsWith("/redacoes") ? "Redações" : location.startsWith("/rotina") ? "Minha rotina" : "Central JR");
 
   return <div className="min-h-screen bg-[var(--edu-bg)] text-[var(--edu-text-primary)]">
     <aside ref={sidebar} className={cn("app-sidebar", mobileOpen && "is-open")} aria-label="Navegação da Central JR" inert={isMobile && !mobileOpen} aria-hidden={isMobile && !mobileOpen ? true : undefined}>
@@ -127,7 +125,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <main className="app-main">
       <header className="topbar"><div className="flex items-center gap-3"><button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menu" aria-expanded={mobileOpen}><Menu size={20} /></button><div><p className="caption">CENTRAL JR / {currentLabel.toUpperCase()}</p><h2 className="section-title">{currentLabel}</h2></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className="profile-trigger" onClick={() => setProfileOpen(value => !value)} aria-expanded={profileOpen} aria-label="Abrir menu do perfil"><Avatar className="h-9 w-9"><AvatarFallback>{initials}</AvatarFallback></Avatar></button>{profileOpen && <div className="profile-menu" role="menu"><p className="caption px-3 pb-2">Conta pessoal</p><button role="menuitem" onClick={() => go("/rotina")}><TimerReset size={15} /> Minha rotina</button><button role="menuitem" onClick={() => go("/conta")}><UserRound size={15} /> Minha conta</button></div>}</div></div></header>
       <div className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--edu-blue-strong)]/20 bg-[var(--edu-blue-soft)] px-4 py-3 text-sm leading-relaxed sm:mx-8" role={persistence.error ? "alert" : "status"}>
-        <span>{persistence.isLoading ? <><strong>Conectando estudos…</strong> Consultando dados privados desta conta.</> : persistence.error ? <><strong>Estudos não sincronizados.</strong> Provas, redações, plano e Flows não puderam ser confirmados no Supabase. Rotina e biblioteca continuam temporárias.</> : <><strong>{persistence.isFetching ? "Sincronizando…" : persistence.isConnected ? "Estudos sincronizados." : "Leitura confirmada; realtime desconectado."}</strong> Provas, tópicos, redações, plano e Flows usam o Supabase. Rotina e biblioteca permanecem temporárias.{persistence.lastConfirmedAt && <> Última leitura: {persistence.lastConfirmedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</>}</>}</span>
+        <span>{persistence.isLoading ? <><strong>Conectando estudos…</strong> Consultando dados privados desta conta.</> : persistence.error ? <><strong>Estudos não sincronizados.</strong> Provas, redações e Flows não puderam ser confirmados no Supabase. Apenas a rotina é temporária.</> : <><strong>{persistence.isFetching ? "Sincronizando…" : persistence.isConnected ? "Estudos sincronizados." : "Leitura confirmada; realtime desconectado."}</strong> Provas, tópicos, redações e Flows usam o Supabase. Apenas a rotina permanece temporária.{persistence.lastConfirmedAt && <> Última leitura: {persistence.lastConfirmedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</>}</>}</span>
         {(persistence.error || !persistence.isConnected) && <button type="button" className="inline-flex items-center gap-2 font-semibold" onClick={() => void persistence.refresh()} disabled={persistence.isFetching}><RefreshCw size={14} className={persistence.isFetching ? "animate-spin" : ""} /> Tentar sincronizar</button>}
       </div>
       {children}

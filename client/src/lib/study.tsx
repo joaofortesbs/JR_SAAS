@@ -54,7 +54,7 @@ export function StudyProvider({ ownerId, children }: { ownerId: string; children
   const state = useMemo(() => {
     if (!query.data?.state) return undefined;
     const temporary = store.getSnapshot();
-    return { ...query.data.state, windows: temporary.windows, commitments: temporary.commitments, resources: temporary.resources };
+    return { ...query.data.state, windows: temporary.windows, commitments: temporary.commitments };
   }, [query.data, store, temporaryRevision]);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -160,11 +160,11 @@ type StudyOperation =
   | "exams.create" | "exams.update" | "exams.close" | "exams.delete" | "exams.createTopic" | "exams.updateTopic" | "exams.deleteTopic"
   | "essays.create" | "essays.delete" | "essays.save" | "essays.autosave" | "essays.restoreVersion" | "essays.applyPart"
   | "essays.createPart" | "essays.updatePart" | "essays.deletePart" | "essays.reorderParts" | "essays.feedback"
-  | "planning.generate" | "planning.updateStatus" | "flows.createAdHoc" | "flows.start" | "flows.pause" | "flows.resume" | "flows.complete" | "flows.cancel";
+  | "flows.createAdHoc" | "flows.start" | "flows.pause" | "flows.resume" | "flows.complete" | "flows.cancel";
 function makeOperation<I>(operation: StudyOperation, revisionFor?: (state: StudyState | undefined, input: I) => number | undefined) {
   return {
     useMutation(options: MutationOptions<I, OperationResult> = {}) {
-      const { state, store, ownerId, status } = useContextValue();
+      const { state, ownerId, status } = useContextValue();
       const refresh = status.refresh;
       const stateRef = useRef(state);
       stateRef.current = state;
@@ -201,9 +201,7 @@ function makeOperation<I>(operation: StudyOperation, revisionFor?: (state: Study
             ? lockedRevision ?? inputRevision ?? confirmedRevisions.get(revisionKey) ?? revisionFor?.(stateRef.current, input)
             : inputRevision ?? lockedRevision ?? confirmedRevisions.get(revisionKey) ?? revisionFor?.(stateRef.current, input);
           try {
-            const payload: Record<string, unknown> = operation === "planning.generate"
-              ? { ...(input as object), windows: store.getSnapshot().windows, commitments: store.getSnapshot().commitments }
-              : { ...(input as Record<string, unknown>) };
+            const payload: Record<string, unknown> = { ...(input as Record<string, unknown>) };
             delete payload.revision;
             const result = await mutationRef.current({
               ownerId,
@@ -233,7 +231,7 @@ function makeOperation<I>(operation: StudyOperation, revisionFor?: (state: Study
         essayWriteQueues.set(queueKey, queued);
         try { return await queued as OperationResult; }
         finally { if (essayWriteQueues.get(queueKey) === queued) essayWriteQueues.delete(queueKey); }
-      }, [operation, ownerId, refresh, revisionFor, store]);
+      }, [operation, ownerId, refresh, revisionFor]);
       return {
         isPending: mutation.isPending,
         error: mutation.error as Error | null,
@@ -292,8 +290,7 @@ export const study = {
     return {
       dashboard: invalidate, exams: { list: invalidate, detail: invalidate, topics: invalidate },
       essays: { list: invalidate, detail: invalidate }, routine: { list: invalidate },
-      flows: { active: invalidate, series: invalidate }, planning: { list: invalidate, detail: invalidate },
-      resources: { list: invalidate },
+      flows: { active: invalidate, series: invalidate },
       study: { snapshot: invalidate },
     };
   },
@@ -322,15 +319,6 @@ export const study = {
     updateCommitment: temporaryMutation((s, i: Parameters<StudyStore["mutations"]["routine"]["updateCommitment"]>[0]) => s.mutations.routine.updateCommitment(i)),
     deleteCommitment: temporaryMutation((s, i: { id: number }) => s.mutations.routine.deleteCommitment(i)),
   },
-  planning: {
-    list: query(state => state.blocks),
-    detail: query((state, input?: { id: number }) => {
-      const block = state.blocks.find(row => row.id === input?.id);
-      return { block, exam: state.exams.find(row => row.id === block?.examId), windows: state.windows };
-    }),
-    generate: makeOperation<{ weekStart?: string; windows?: unknown[]; commitments?: unknown[] }>("planning.generate"),
-    updateStatus: makeOperation<any>("planning.updateStatus", byIdRevision("blocks")),
-  },
   flows: {
     active: query((state, _input, serverNow, clockSampleAt) => {
       const session = state.sessions.find(row => row.status === "running" || row.status === "paused");
@@ -354,12 +342,6 @@ export const study = {
     resume: makeOperation<{ id: number }>("flows.resume", byIdRevision("sessions")),
     complete: makeOperation<{ id: number }>("flows.complete", byIdRevision("sessions")),
     cancel: makeOperation<{ id: number }>("flows.cancel", byIdRevision("sessions")),
-  },
-  resources: {
-    list: localQuery(store => store.queries.resources.list()),
-    create: temporaryMutation((s, i: Parameters<StudyStore["mutations"]["resources"]["create"]>[0]) => s.mutations.resources.create(i)),
-    update: temporaryMutation((s, i: Parameters<StudyStore["mutations"]["resources"]["update"]>[0]) => s.mutations.resources.update(i)),
-    delete: temporaryMutation((s, i: { id: number }) => s.mutations.resources.delete(i)),
   },
   essays: {
     list: query(state => state.essays),

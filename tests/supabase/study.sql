@@ -10,6 +10,13 @@ declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); exam_id integer; e
  paused_ms bigint; denied boolean; original_parts integer; snap jsonb;
 begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',false)::text,true);
+ for r in select to_jsonb(value) from unnest(array['planning.generate','planning.updateStatus','resources.create']) value loop
+  denied:=false;
+  begin perform public.jr_study_mutate(r#>>'{}','{}'::jsonb,gen_random_uuid());
+  exception when others then if sqlerrm like '%INVALID_OPERATION%' then denied:=true; else raise; end if; end;
+  if not denied then raise exception 'TEST: retired operation remains active'; end if;
+ end loop;
+ if exists(select 1 from information_schema.columns where table_schema='public' and table_name='jr_blocks' and column_name='resource_id') then raise exception 'TEST: retired library relation'; end if;
  r:=public.jr_study_mutate('exams.create','{"name":"Teste isolado","institution":"Verificação","date":"2026-11-15","priority":"alta"}',create_command);
  exam_id:=(r->>'id')::integer;
  r:=public.jr_study_mutate('exams.create','{"name":"Teste isolado","institution":"Verificação","date":"2026-11-15","priority":"alta"}',create_command);
@@ -87,5 +94,5 @@ begin
  exception when others then if sqlerrm like '%UNAUTHORIZED%' then denied:=true; else raise; end if; end;
  if not denied then raise exception 'TEST: anonymous command'; end if;
 end $$;
-select jsonb_build_object('passed',true,'checks',array['idempotent_create','ownership_insert','essay_revision','complete_version_restore','one_active_flow','direct_clock_write_denied','pause_resume','period_sum','recovery_snapshot','cross_account_read','cross_account_command','cross_owner_fk','anonymous_denied']) as verification;
+select jsonb_build_object('passed',true,'checks',array['retired_operations_denied','library_relation_removed','idempotent_create','ownership_insert','essay_revision','complete_version_restore','one_active_flow','direct_clock_write_denied','pause_resume','period_sum','recovery_snapshot','cross_account_read','cross_account_command','cross_owner_fk','anonymous_denied']) as verification;
 rollback;

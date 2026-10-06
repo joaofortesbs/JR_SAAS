@@ -24,14 +24,15 @@ describe("temporary study workspace", () => {
     s.mutations.exams.delete({ id });
     expect(s.getSnapshot().exams).toEqual([]);
   });
-  it("validates routine duration and conflicts, generates a nonduplicated plan", () => {
+  it("validates routine duration and conflicts independently of removed modules", () => {
     const s = new StudyStore("a");
     s.mutations.exams.create(exam);
     expect(() => s.mutations.routine.addWindow({ weekday: 1, startTime: "20:00", endTime: "19:00", maxMinutes: 60 })).toThrow();
     const window = s.mutations.routine.addWindow({ weekday: 1, startTime: "19:00", endTime: "21:00", maxMinutes: 60 });
     expect(() => s.mutations.routine.addCommitment({ title: "Aula", weekday: 1, startTime: "20:00", endTime: "22:00" })).toThrow();
-    expect(s.mutations.planning.generate({ weekStart: "2026-10-05" }).created).toBe(1);
-    expect(s.mutations.planning.generate({ weekStart: "2026-10-05" }).created).toBe(0);
+    expect(s.mutations).not.toHaveProperty("planning");
+    expect(s.mutations).not.toHaveProperty("resources");
+    expect(s.getSnapshot()).not.toHaveProperty("resources");
     s.mutations.routine.deleteWindow(window);
     expect(s.getSnapshot().windows).toEqual([]);
   });

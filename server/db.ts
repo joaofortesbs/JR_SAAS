@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { getMysqlDatabaseUrl } from "./_core/databaseConfig";
 import {
   users, exams, topics, studyWindows, fixedCommitments,
-  resources, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback,
+  studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback,
   auditEvents,
 } from "../drizzle/schema";
 
@@ -18,18 +18,17 @@ export async function getDb() {
 
 export async function getDashboard(userId: number) {
   const db = await getDb();
-  if (!db) return { exams: [], topics: [], blocks: [], windows: [], commitments: [], resources: [], essays: [], sessions: [] };
-  const [examRows, topicRows, blockRows, windowRows, commitmentRows, resourceRows, essayRows, sessionRows] = await Promise.all([
+  if (!db) return { exams: [], topics: [], blocks: [], windows: [], commitments: [], essays: [], sessions: [] };
+  const [examRows, topicRows, blockRows, windowRows, commitmentRows, essayRows, sessionRows] = await Promise.all([
     db.select().from(exams).where(eq(exams.userId, userId)).orderBy(exams.date),
     db.select().from(topics).where(eq(topics.userId, userId)).orderBy(desc(topics.weight), topics.subject),
     db.select().from(studyBlocks).where(eq(studyBlocks.userId, userId)).orderBy(studyBlocks.date, studyBlocks.startTime),
     db.select().from(studyWindows).where(eq(studyWindows.userId, userId)).orderBy(studyWindows.weekday, studyWindows.startTime),
     db.select().from(fixedCommitments).where(eq(fixedCommitments.userId, userId)).orderBy(fixedCommitments.weekday, fixedCommitments.startTime),
-    db.select().from(resources).where(eq(resources.userId, userId)).orderBy(desc(resources.createdAt)),
     db.select().from(essays).where(eq(essays.userId, userId)).orderBy(desc(essays.updatedAt)),
   db.select().from(studySessions).where(eq(studySessions.userId, userId)).orderBy(desc(studySessions.createdAt)),
   ]);
-  return { exams: examRows, topics: topicRows, blocks: blockRows, windows: windowRows, commitments: commitmentRows, resources: resourceRows, essays: essayRows, sessions: sessionRows };
+  return { exams: examRows, topics: topicRows, blocks: blockRows, windows: windowRows, commitments: commitmentRows, essays: essayRows, sessions: sessionRows };
 }
 
 export async function listTopics(userId: number, examId?: number) {
@@ -48,4 +47,4 @@ export async function listEssayDetail(userId: number, essayId: number) {
   return { essay: essayRows[0], parts, versions, feedback };
 }
 
-export { users, exams, topics, studyWindows, fixedCommitments, resources, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback, auditEvents };
+export { users, exams, topics, studyWindows, fixedCommitments, studyBlocks, studySessions, essays, essayParts, essayVersions, essayFeedback, auditEvents };

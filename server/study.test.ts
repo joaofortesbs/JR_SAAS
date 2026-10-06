@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
-import { databaseError, decodeSnapshot, studyMutation, studySchemas, studySnapshot } from "./study";
+import { databaseError, decodeSnapshot, studyInput, studyMutation, studySchemas, studySnapshot } from "./study";
 import { appRouter } from "./routers";
 
 const mocks = vi.hoisted(()=>({rpc:vi.fn(),create:vi.fn()}));
@@ -55,9 +55,12 @@ describe("Supabase study runtime boundaries",()=>{
   await studyMutation(ctx,{ownerId,operation:"flows.start",requestId,payload:{blockId:2,startedAt:"2000-01-01",accumulatedMs:90000000}});
   expect(mocks.rpc.mock.calls[0][1].payload).toEqual({blockId:2});
  });
- it("requires correctly sized non-overlapping temporary planning inputs",async()=>{
-  await expect(studyMutation(ctx,{ownerId,operation:"planning.generate",requestId,payload:{windows:[{weekday:1,startTime:"10:00",endTime:"10:20",maxMinutes:90}]}})).rejects.toMatchObject({code:"BAD_REQUEST"});
-  await expect(studyMutation(ctx,{ownerId,operation:"planning.generate",requestId,payload:{windows:[{weekday:1,startTime:"10:00",endTime:"11:00",maxMinutes:60}],commitments:[{weekday:1,startTime:"10:30",endTime:"12:00"}]}})).rejects.toMatchObject({code:"BAD_REQUEST"});
+ it("removes weekly planning and library operations and router paths",()=>{
+  for (const operation of ["planning.generate","planning.updateStatus","resources.create"]) {
+   expect(studyInput.safeParse({ownerId,operation,requestId,payload:{}}).success).toBe(false);
+  }
+  expect(Object.keys(appRouter._def.procedures).some(path=>/^(planning|resources)\./.test(path))).toBe(false);
+  expect(decodeSnapshot(rawSnapshot(),ownerId).state).not.toHaveProperty("resources");
   expect(mocks.rpc).not.toHaveBeenCalled();
  });
  it("rejects unexpected private ownership in a snapshot",()=>{
@@ -79,8 +82,7 @@ describe("Supabase study runtime boundaries",()=>{
   const anonymous=appRouter.createCaller({...ctx,user:null});
   await expect(anonymous.study.snapshot({ownerId})).rejects.toMatchObject({code:"UNAUTHORIZED"});
  });
- it("rejects impossible dates and obsolete fake completion states",()=>{
+ it("rejects impossible dates",()=>{
   expect(studySchemas["exams.create"].safeParse({name:"Teste",institution:"Instituição",priority:"alta",date:"2026-02-30"}).success).toBe(false);
-  expect(studySchemas["planning.updateStatus"].safeParse({id:1,status:"completed"}).success).toBe(false);
  });
 });

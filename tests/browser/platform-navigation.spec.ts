@@ -62,11 +62,23 @@ test("login, real study snapshot fixture, navigation and logout work on desktop 
   expect(fixture.calls.some(call => call.type === "snapshot" && call.ownerId === fixtureUserId)).toBe(true);
 
   const sidebar = await showSidebar(page, isMobile);
+  await expect(sidebar.getByRole("button", { name: /Plano|Biblioteca/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Plano|Biblioteca/ })).toHaveCount(0);
   await sidebar.getByRole("button", { name: "Minha conta", exact: true }).click();
   await expect(page).toHaveURL(/\/conta$/);
   await expect(page.getByRole("heading", { name: fixtureUser.user_metadata.name, exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Início Voltar ao Painel" }).click();
   await expect(page).toHaveURL(/\/painel$/);
+  await expect(page.getByRole("heading", { name: /plano semanal|biblioteca/i })).toHaveCount(0);
+  await expect(page.getByText(/plano|planejamento|biblioteca/i)).toHaveCount(0);
+  for (const removedPath of ["/plano", "/plano/51", "/biblioteca"]) {
+    await page.goto(removedPath);
+    await expect(page).toHaveURL(new RegExp(`${removedPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+    await expect(page.getByRole("heading", { name: "Página não encontrada", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Plano semanal", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Biblioteca", exact: true })).toHaveCount(0);
+  }
+  await page.goto("/painel");
 
   const nav = await showSidebar(page, isMobile);
   await nav.getByRole("button", { name: "Provas Prazos e objetivos" }).click();
@@ -151,6 +163,7 @@ test("exam create, read, update, delete and reload persist through the controlle
   const examCalls = fixture.calls.filter(call => call.type === "mutation" && call.operation.startsWith("exams."));
   expect(examCalls.map(call => call.operation)).toEqual(["exams.create", "exams.update", "exams.delete"]);
   expect(examCalls.every(call => call.ownerId === fixtureUserId && Boolean(call.requestId))).toBe(true);
+  expect(fixture.calls.filter(call => call.type === "mutation").every(call => !/^(planning\.|resources\.)/.test(call.operation))).toBe(true);
 });
 
 test("snapshot error is explicit and retry re-reads the account fixture", async ({ page }) => {

@@ -6,7 +6,7 @@ const now = new Date("2026-10-06T12:00:00.000Z");
 
 function emptyState() {
   return {
-    exams: [], topics: [], windows: [], commitments: [], resources: [], blocks: [],
+    exams: [], topics: [], windows: [], commitments: [], blocks: [],
     sessions: [], essays: [], parts: [], versions: [], feedback: [], periods: [],
   };
 }
@@ -66,6 +66,12 @@ export function createStudyFixture() {
     const p = input.payload ?? {};
     let result: any = { success: true };
     switch (input.operation) {
+      case "planning.generate":
+      case "planning.updateStatus":
+      case "resources.create":
+      case "resources.update":
+      case "resources.delete":
+        return serverError("study.mutate", "NOT_FOUND", "Este módulo foi removido.", 404);
       case "exams.create": {
         const id = nextExamId++;
         state.exams.push({ id, userId: fixtureUserId, ...p, status: "active", revision: 1, createdAt: new Date(), updatedAt: new Date() });

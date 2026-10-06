@@ -1,13 +1,12 @@
-import type { Exam, Topic, StudyWindow, FixedCommitment, Resource, StudyBlock, StudySession, Essay, EssayPart, EssayVersion, EssayFeedback } from "../../../drizzle/schema";
+import type { Exam, Topic, StudyWindow, FixedCommitment, StudyBlock, StudySession, Essay, EssayPart, EssayVersion, EssayFeedback } from "../../../drizzle/schema";
 
-// Domain record IDs are temporary numbers; the account identity remains a UUID.
+// Domain record IDs are integers; authenticated account identities remain UUIDs.
 type Owned<T> = Omit<T, "userId"> & { userId: string; revision?: number };
 export type StudyState = {
   exams: Owned<Exam>[];
   topics: Owned<Topic>[];
   windows: Owned<StudyWindow>[];
   commitments: Owned<FixedCommitment>[];
-  resources: Owned<Resource>[];
   blocks: Owned<StudyBlock>[];
   sessions: Owned<StudySession>[];
   essays: Owned<Essay>[];
@@ -18,7 +17,7 @@ export type StudyState = {
 };
 
 export const emptyStudyState = (): StudyState => ({
-  exams: [], topics: [], windows: [], commitments: [], resources: [],
+  exams: [], topics: [], windows: [], commitments: [],
   blocks: [], sessions: [], essays: [], parts: [], versions: [], feedback: [], periods: [],
 });
 

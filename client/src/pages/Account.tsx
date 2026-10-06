@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, BookOpen, CalendarDays, LogOut, Moon, Sun, UserRound, LockKeyhole, AlertCircle } from "lucide-react";
+import { ArrowRight, BookOpen, LogOut, Moon, Sun, UserRound, LockKeyhole, AlertCircle } from "lucide-react";
 import { authMessage } from "@shared/auth";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -104,10 +104,10 @@ export default function AccountPage({ unavailable = false, embedded = false }: A
             </div>
             <span className="account-lock-mark"><LockKeyhole size={19} /></span>
           </div>
-          <p>Provas, tópicos, redações, planejamento e Flows usam o Supabase com a sessão autenticada. Rotina e biblioteca ficam somente na memória desta visita; não são salvas remotamente.</p>
+          <p>Provas, tópicos, redações e Flows usam o Supabase com a sessão autenticada. A rotina fica somente na memória desta visita; não é salva remotamente.</p>
           <div className="account-disabled-actions">
             <button type="button" disabled><BookOpen size={17} /> Estudos <span>{persistence.error ? "Falha de leitura" : persistence.isLoading ? "Consultando" : "Supabase"}</span></button>
-            <button type="button" disabled><CalendarDays size={17} /> Rotina e biblioteca <span>Temporárias</span></button>
+            <button type="button" disabled><BookOpen size={17} /> Minha rotina <span>Temporária</span></button>
           </div>
           {persistence.error && <button type="button" className="account-nav-link mt-4" onClick={() => void persistence.refresh()}>Tentar consultar novamente</button>}
           <small>Ao sair ou trocar de conta, os dados privados do usuário anterior são removidos da tela.</small>

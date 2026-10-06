@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { emptyStudyState, safeEssayHtml, type StudyState } from "./study-types";
 import { elapsedSeconds, dailyFlowSeries } from "../../../server/flow";
-import { addMinutesToTime, generateStudyPlan } from "../../../server/planning";
 
 const id = z.number().int().positive();
 const byId = z.object({ id });
@@ -20,10 +19,13 @@ const windowInput = z.object({ weekday: z.number().int().min(0).max(6), startTim
 const commitmentInput = z.object({ title: text, weekday: z.number().int().min(0).max(6), startTime: time, endTime: time, kind: z.string().max(40).default("commitment") });
 const essayInput = z.object({ title: text, theme: note, bank: z.string().max(80).default("ENEM"), source: z.enum(["editor", "upload"]).default("editor"), examId: id.optional() });
 const essaySave = z.object({ id, title: text, theme: note, currentText: z.string().max(1000000), status: z.enum(["draft", "submitted_for_review", "feedback_received", "revision_needed", "revised"]).optional() });
-const resourceInput = z.object({ title: text, type: z.string().max(40).default("link"), url: z.string().max(4000).optional(), source: z.string().max(120).optional(), subject: z.string().max(100).optional(), durationMinutes: z.number().int().min(5).max(600).default(50) });
 type Row<K extends keyof StudyState> = StudyState[K][number];
 type Fields<K extends keyof StudyState> = Omit<Row<K>, "id" | "userId" | "createdAt">;
 const minute = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+const addMinutesToTime = (value: string, amount: number) => {
+  const total = (minute(value) + amount) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
 
 /** An isolated session workspace. No network, browser storage, or seed data. */
 export class StudyStore {
@@ -89,13 +91,6 @@ export class StudyStore {
       topics: (input?: { examId?: number }) => this.state.topics.filter(row => input?.examId === undefined || row.examId === input.examId),
     },
     routine: { list: () => ({ windows: this.state.windows, commitments: this.state.commitments }) },
-    planning: {
-      list: () => this.state.blocks,
-      detail: (input: { id: number }) => {
-        const block = this.state.blocks.find(row => row.id === input.id);
-        return { block, exam: this.state.exams.find(row => row.id === block?.examId), windows: this.state.windows };
-      },
-    },
     flows: {
       active: () => {
         const session = this.active();
@@ -105,7 +100,6 @@ export class StudyStore {
       },
       series: (input?: { days?: number }) => dailyFlowSeries(this.state.sessions, Math.min(30, Math.max(2, input?.days ?? 7))),
     },
-    resources: { list: () => this.state.resources },
     essays: {
       list: () => this.state.essays,
       detail: (input: { id: number }) => ({ essay: this.state.essays.find(row => row.id === input.id), parts: this.state.parts.filter(row => row.essayId === input.id).sort((a, b) => a.sortOrder - b.sortOrder), versions: this.state.versions.filter(row => row.essayId === input.id).sort((a, b) => b.versionNumber - a.versionNumber), feedback: this.state.feedback.filter(row => row.essayId === input.id) }),
@@ -174,23 +168,6 @@ export class StudyStore {
       },
       deleteCommitment: (input: { id: number }) => this.remove("commitments", byId.parse(input).id),
     },
-    planning: {
-      generate: (input?: { weekStart?: string }) => {
-        if (input?.weekStart) date.parse(input.weekStart);
-        const exams = this.state.exams.filter(row => row.status === "active");
-        if (!exams.length || !this.state.windows.length) throw new Error("Cadastre uma prova e um horário disponível na rotina antes de gerar o plano.");
-        const suggestions = generateStudyPlan({ weekStart: input?.weekStart, exams, topics: this.state.topics, windows: this.state.windows });
-        const existing = new Set(this.state.blocks.map(row => `${row.date}:${row.startTime}`));
-        const ids = suggestions.filter(row => !existing.has(`${row.date}:${row.startTime}`)).map(row =>
-          this.add("blocks", { ...row, topicId: row.topicId ?? null, examId: row.examId, essayId: null, resourceId: null, status: "planned", updatedAt: new Date() }).id);
-        return { ids, created: ids.length };
-      },
-      updateStatus: (input: { id: number; status: Row<"blocks">["status"] }) => {
-        const value = byId.extend({ status: z.enum(["planned", "accepted", "in_progress", "completed", "partially_completed", "postponed", "cancelled"]) }).parse(input);
-        if (this.active()?.blockId === value.id) throw new Error("Use os controles do Flow para alterar uma sessão ativa.");
-        return this.update("blocks", value.id, { status: value.status });
-      },
-    },
     flows: {
       createAdHoc: (input: { examId?: number; essayId?: number }) => {
         const value = z.object({ examId: id.optional(), essayId: id.optional() }).refine(row => Boolean(row.examId) !== Boolean(row.essayId), "Escolha uma prova ou uma redação.").parse(input);
@@ -199,7 +176,7 @@ export class StudyStore {
         if ("status" in context && context.status === "archived") throw new Error("Esta prova está arquivada.");
         const now = new Date();
         const startTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        return { id: this.add("blocks", { examId: value.examId ?? null, essayId: value.essayId ?? null, topicId: null, resourceId: null, title: `Flow · ${"name" in context ? context.name : context.title}`, kind: "flow", date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`, startTime, endTime: addMinutesToTime(startTime, 50), durationMinutes: 50, status: "planned", reason: "Sessão temporária iniciada a partir deste objetivo.", minimumVersion: "Use o tempo que você tem disponível.", updatedAt: now }).id };
+        return { id: this.add("blocks", { examId: value.examId ?? null, essayId: value.essayId ?? null, topicId: null, title: `Flow · ${"name" in context ? context.name : context.title}`, kind: "flow", date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`, startTime, endTime: addMinutesToTime(startTime, 50), durationMinutes: 50, status: "planned", reason: "Sessão temporária iniciada a partir deste objetivo.", minimumVersion: "Use o tempo que você tem disponível.", updatedAt: now }).id };
       },
       start: (input: { blockId: number }) => {
         const value = z.object({ blockId: id }).parse(input);
@@ -223,19 +200,6 @@ export class StudyStore {
       },
       complete: (input: { id: number }) => this.endFlow(input, false),
       cancel: (input: { id: number }) => this.endFlow(input, true),
-    },
-    resources: {
-      create: (input: z.input<typeof resourceInput>) => {
-        const value = resourceInput.parse(input);
-        if (value.url && !/^https?:\/\//i.test(value.url)) throw new Error("Use um endereço http ou https.");
-        return { id: this.add("resources", { ...value, url: value.url ?? null, source: value.source ?? null, subject: value.subject ?? null, fileKey: null, status: "available" }).id };
-      },
-      update: (input: z.input<typeof resourceInput> & { id: number }) => {
-        byId.parse(input); const value = resourceInput.parse(input);
-        if (value.url && !/^https?:\/\//i.test(value.url)) throw new Error("Use um endereço http ou https.");
-        return this.update("resources", input.id, { ...value, url: value.url ?? null, source: value.source ?? null, subject: value.subject ?? null });
-      },
-      delete: (input: { id: number }) => this.remove("resources", byId.parse(input).id),
     },
     essays: {
       create: (input: z.input<typeof essayInput>) => {

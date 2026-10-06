@@ -83,17 +83,21 @@ The frontend facade keeps existing domain interfaces and reconciles through
 Realtime/focus/periodic authoritative snapshots, without fake successful saves.
 Request IDs deduplicate mutations; revisions protect essay and Flow changes.
 
-Exams/topics, essays/parts/manual feedback/full snapshots, generated planning
-blocks, Flow sessions and execution periods use `public.jr_*` tables. Official
+Exams/topics, essays/parts/manual feedback/full snapshots, Flow contexts,
+sessions and execution periods use `public.jr_*` tables. Official
 Flow timestamps and millisecond durations can only be changed through the narrow
 owner-checked command in the non-exposed `jr_private` schema. At most one running
 or paused Flow per account; logout/reload/device switches do NOT pause it.
 Paused intervals do not count. Full essay restoration includes personalization.
 Autosaves serialize writes, keep dirty drafts on failure and use base revisions.
 
-Routine windows/commitments and library resources/previews are still temporary
-account-isolated browser memory and explicitly labeled. Planning validates those
-temporary inputs but persists resulting blocks. Uploads/buckets remain excluded.
+Routine windows/commitments remain temporary account-isolated browser memory
+and are explicitly labeled. Weekly Plan and Library were explicitly removed
+with user approval: no pages, routes, navigation, APIs, generators or resource
+relationships remain active. Flow contexts/history are preserved, including
+previously created contexts. Applied migration history must remain intact; the
+forward migration disables retired commands directly in Supabase as well.
+Do not reintroduce either removed section. Uploads/buckets remain excluded.
 Retired domain routes remain unavailable for authenticated calls. Old storage
 and OAuth routes are not reactivated. No MySQL/Forge handler runs in the app.
 

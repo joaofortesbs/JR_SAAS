@@ -7,7 +7,6 @@ import { useLocation } from "wouter";
 const destinations = [
   { path: "/provas", label: "Provas", description: "Objetivos, datas e conteúdos.", icon: CalendarDays, tone: "blue" },
   { path: "/flows", label: "Flows", description: "Sessões de foco e histórico.", icon: Workflow, tone: "mint" },
-  { path: "/plano", label: "Plano", description: "Organize blocos de estudo.", icon: CalendarDays, tone: "yellow" },
   { path: "/redacoes", label: "Redações", description: "Textos, partes e versões.", icon: FileText, tone: "peach" },
   { path: "/rotina", label: "Rotina", description: "Janelas e compromissos.", icon: Clock3, tone: "yellow" },
 ];
@@ -26,9 +25,6 @@ export default function Panel() {
 
   const exams = data?.exams ?? [];
   const essays = data?.essays ?? [];
-  const blocks = data?.blocks ?? [];
-  const completed = blocks.filter(block => block.status === "completed");
-  const plannedMinutes = (data?.windows ?? []).reduce((sum, window) => sum + window.maxMinutes, 0);
   return (
     <div className="page-frame panel-page">
       <div className="page-heading panel-heading">
@@ -49,10 +45,10 @@ export default function Panel() {
         <div className="panel-hero-copy">
           <div className="pill pill-blue"><BookOpen size={14} /> Central JR</div>
           <h2 id="panel-welcome-title" className="hero-title mt-5">
-            Um plano de estudos que começa pelo que importa.
+            Um caminho de estudos que começa pelo que importa.
           </h2>
           <p className="body-copy mt-3 max-w-xl">
-            Provas, redações, planejamento e Flows acompanham sua conta. Rotina e biblioteca continuam temporárias.
+            Provas, redações e Flows acompanham sua conta. A rotina fica disponível nesta visita.
           </p>
           <div className="flex flex-wrap gap-3 mt-6">
             <Button className="soft-button-primary" onClick={() => setLocation("/provas")}>
@@ -79,7 +75,7 @@ export default function Panel() {
         <div className="panel-storage-icon"><Timer size={17} /></div>
         <div className="min-w-0">
           <p className="panel-storage-title">{error ? "Não foi possível carregar seus estudos" : isLoading ? "Consultando seus estudos…" : "Estudos da sua conta"}</p>
-          <p className="caption">{error ? "Nenhum resultado temporário foi usado. Tente novamente para consultar o estado oficial." : isLoading ? "A atividade aparecerá quando a leitura autorizada for concluída." : `${exams.length} provas · ${essays.length} redações · ${completed.length} blocos concluídos · ${plannedMinutes} min nas janelas temporárias.`}</p>
+          <p className="caption">{error ? "Nenhum resultado temporário foi usado. Tente novamente para consultar o estado oficial." : isLoading ? "A atividade aparecerá quando a leitura autorizada for concluída." : `${exams.length} provas · ${essays.length} redações.`}</p>
         </div>
         {error ? <Button variant="outline" className="soft-button-secondary shrink-0" onClick={() => utils.study.snapshot.invalidate()}><RefreshCw size={15} /> Tentar novamente</Button> : <span className="panel-storage-badge">{isLoading ? "Aguardando" : "Supabase"}</span>}
       </section>
@@ -90,7 +86,7 @@ export default function Panel() {
             <p className="eyebrow">Seu espaço de estudo</p>
             <h2 id="panel-paths-title" className="card-title mt-1">Escolha por onde começar</h2>
           </div>
-          <p className="caption panel-section-aside">{blocks.length} sessões no plano</p>
+          <p className="caption panel-section-aside">Acesso rápido aos módulos ativos</p>
         </div>
         <div className="panel-path-grid">
           {destinations.map(({ path, label, description, icon: Icon, tone }, index) => (
@@ -125,7 +121,7 @@ export default function Panel() {
           <div>
             <p className="eyebrow">Um começo honesto</p>
             <h2 className="card-title mt-1">Cada módulo tem seu lugar.</h2>
-            <p className="body-copy mt-2">Provas, redações, plano e Flows consultam o Supabase autenticado. Rotina e biblioteca permanecem temporárias e são enviadas ao gerar um plano, sem serem apresentadas como salvas.</p>
+            <p className="body-copy mt-2">Provas, redações e Flows consultam o Supabase autenticado. Apenas a rotina permanece temporária.</p>
           </div>
         </div>
         <button

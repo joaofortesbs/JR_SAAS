@@ -14,9 +14,7 @@ import { StudyProvider } from "./lib/study";
 import Exams, { ExamDetail } from "./pages/Exams";
 import Flows from "./pages/Flows";
 import Essays from "./pages/Essays";
-import Home from "./pages/Home";
 import Routine from "./pages/Routine";
-import Library from "./pages/Library";
 
 function Platform() {
   const { loading, user, error, recovery } = useAuth();
@@ -36,10 +34,7 @@ function Platform() {
     <Route path="/redacoes/nova"><Essays /></Route>
     <Route path="/redacoes/:id"><Essays /></Route>
     <Route path="/redacoes"><Essays /></Route>
-    <Route path="/plano/:id"><Home /></Route>
-    <Route path="/plano"><Home /></Route>
     <Route path="/rotina"><Routine /></Route>
-    <Route path="/biblioteca"><Library /></Route>
     <Route path="/configuracoes"><Redirect to="/conta" /></Route>
     <Route><NotFound /></Route>
   </Switch></AppShell></StudyProvider>;

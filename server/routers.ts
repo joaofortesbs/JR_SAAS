@@ -19,9 +19,7 @@ export const appRouter = router({
   dashboard: query,
   exams: router({ list: query, detail: query, topics: query, create: mutation, update: mutation, close: mutation, createTopic: mutation, updateTopic: mutation }),
   routine: router({ list: query, addWindow: mutation, addCommitment: mutation }),
-  planning: router({ list: query, detail: query, generate: mutation, updateStatus: mutation }),
   flows: router({ active: query, series: query, createAdHoc: mutation, start: mutation, pause: mutation, resume: mutation, complete: mutation, cancel: mutation }),
-  resources: router({ list: query, create: mutation }),
   sessions: router({ create: mutation }),
   essays: router({ list: query, detail: query, create: mutation, save: mutation, autosave: mutation, createPart: mutation, updatePart: mutation, reorderParts: mutation, deletePart: mutation, applyPart: mutation, feedback: mutation }),
 });

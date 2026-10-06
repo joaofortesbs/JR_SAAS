@@ -61,27 +61,12 @@ export const studyWindows = mysqlTable("studyWindows", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export const resources = mysqlTable("resources", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  title: varchar("title", { length: 180 }).notNull(),
-  type: varchar("type", { length: 40 }).default("link").notNull(),
-  url: text("url"),
-  fileKey: text("fileKey"),
-  source: varchar("source", { length: 120 }),
-  subject: varchar("subject", { length: 100 }),
-  durationMinutes: int("durationMinutes").default(50).notNull(),
-  status: mysqlEnum("status", ["added", "available", "linked", "archived", "unavailable"]).default("added").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
 export const studyBlocks = mysqlTable("studyBlocks", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   examId: int("examId"),
   essayId: int("essayId"),
   topicId: int("topicId"),
-  resourceId: int("resourceId"),
   title: varchar("title", { length: 180 }).notNull(),
   kind: varchar("kind", { length: 40 }).default("review").notNull(),
   date: varchar("date", { length: 10 }).notNull(),
@@ -181,7 +166,6 @@ export type Exam = typeof exams.$inferSelect;
 export type Topic = typeof topics.$inferSelect;
 export type StudyWindow = typeof studyWindows.$inferSelect;
 export type FixedCommitment = typeof fixedCommitments.$inferSelect;
-export type Resource = typeof resources.$inferSelect;
 export type StudyBlock = typeof studyBlocks.$inferSelect;
 export type StudySession = typeof studySessions.$inferSelect;
 export type Essay = typeof essays.$inferSelect;
